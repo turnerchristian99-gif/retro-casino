@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Royale Ultra</title>
+    
+    <!-- Website Icon (Favicon) - High-compatibility SVG Neon Slot Machine -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='20' width='60' height='70' rx='5' fill='%23222' stroke='%230ff' stroke-width='4'/%3E%3Crect x='30' y='35' width='40' height='20' fill='%23000' stroke='%23f0f' stroke-width='2'/%3E%3Ccircle cx='85' cy='40' r='6' fill='%23f0f'/%3E%3Cpath d='M85 40 L85 70' stroke='%23f0f' stroke-width='4'/%3E%3Ctext x='50' y='50' font-family='Arial' font-size='12' fill='%230ff' text-anchor='middle'%3E777%3C/text%3E%3C/svg%3E">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-blue: #00ffff;
+            --neon-purple: #9d00ff;
+            --dark-bg: #050110;
+            --felt-green: #0a4d2e;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            background-image: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            color: #e0e0e0;
+            font-family: 'Space Mono', monospace;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        h1, h2, h3, .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), radial-gradient(rgba(18, 16, 16, 0) 0%, rgba(0, 0, 0, 0.2) 100%);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .neon-box {
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 10px rgba(0, 255, 255, 0.2);
+            background: rgba(13, 2, 33, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn-retro {
+            background: rgba(255, 0, 255, 0.1);
+            border: 1px solid var(--neon-pink);
+            color: var(--neon-pink);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            padding: 8px 16px;
+        }
+
+        .btn-retro:hover:not(:disabled) {
+            background: var(--neon-pink);
+            color: white;
+            box-shadow: 0 0 20px var(--neon-pink);
+        }
+
+        .btn-retro:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .card {
+            width: 60px;
+            height: 85px;
+            background: #fff;
+            border-radius: 6px;
+            color: #111;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            font-size: 12px;
+            position: relative;
+        }
+        .card.red { color: #d00; }
+        .card.hidden-card {
+            background: repeating-linear-gradient(45deg, #222, #222 5px, #444 5px, #444 10px);
+            border: 2px solid #555;
+        }
+
+        .table-felt {
+            background: radial-gradient(circle, var(--felt-green) 0%, #052617 100%);
+            border: 12px solid #2d1b0f;
+            border-radius: 20px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .roulette-grid {
+            display: grid;
+            grid-template-columns: repeat(14, 1fr);
+            gap: 2px;
+            background: #111;
+            padding: 2px;
+            border: 2px solid #444;
+        }
+        .r-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .r-cell:hover { filter: brightness(1.5); }
+        .r-red { background: #d00; }
+        .r-black { background: #111; }
+        .r-green { background: #0a0; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; align-items: center;
+            justify-content: center; z-index: 200; padding: 20px;
+        }
+
+        .roulette-wheel-container {
+            width: 320px;
+            height: 320px;
+            border: 12px solid #2d1b0f;
+            border-radius: 50%;
+            position: relative;
+            background: #111;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            transition: transform 4s cubic-bezier(0.15, 0, 0.15, 1);
+        }
+
+        .wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, #ddd, #666);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        .wheel-number-item {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            width: 24px;
+            margin-left: -12px;
+            height: 140px;
+            transform-origin: bottom center;
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .poker-player-area {
+            transition: all 0.3s ease;
+            padding: 10px;
+            border-radius: 10px;
+            width: 120px;
+        }
+        .poker-player-area.active-turn {
+            background: rgba(0, 255, 255, 0.15);
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: scale(1.1);
+        }
+
+        .info-pulse {
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+        }
+
+        .rule-list { text-align: left; margin-bottom: 20px; }
+        .rule-list li { margin-bottom: 8px; font-size: 13px; line-height: 1.4; }
+        .rule-list b { color: var(--neon-blue); }
+        
+        #info-modal .neon-box { max-height: 90vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div id="login-screen" class="fixed inset-0 bg-black flex items-center justify-center z-50">
+  <div class="neon-box p-8 w-80 text-center">
+    <h2 class="orbitron text-xl text-cyan-400 mb-4">RETRO ROYAL CASINO</h2>
+
+    <input id="player-name" placeholder="Your Name"
+      class="w-full mb-3 p-2 bg-black border border-cyan-400 text-cyan-300">
+
+    <button id="login-btn" onclick="loginPlayer()" class="btn-retro w-full" disabled>
+  ENTER CASINO
+</button>
+
+  </div>
+</div>
+
+    <div class="crt-overlay"></div>
+
+    <!-- Bankrupt Modal -->
+    <div id="bailout-modal" class="modal-overlay">
+        <div class="neon-box p-8 max-w-md text-center">
+            <h2 class="text-3xl orbitron text-red-500 mb-4">BANKRUPT</h2>
+            <p class="mb-6">You are out of credits. We can lend you <span class="text-yellow-400 font-bold">$500</span>, but you'll be in <span class="text-red-400">DEBT</span>.</p>
+            <p class="text-xs opacity-60 mb-6">In Debt mode, you must reach $2,500 to "Break the Bank" and return to normal play.</p>
+            <button onclick="acceptBailout()" class="btn-retro w-full">ACCEPT LOAN</button>
+        </div>
+    </div>
+
+    <!-- Rule Info Modal -->
+    <div id="info-modal" class="modal-overlay" onclick="closeInfoModal()">
+        <div class="neon-box p-8 max-w-lg w-full" onclick="event.stopPropagation()">
+            <h2 id="info-title" class="text-2xl orbitron text-cyan-400 mb-6 text-center uppercase border-b border-cyan-400/30 pb-4">HOW TO PLAY</h2>
+            <div id="info-content" class="mb-8"></div>
+            <button onclick="closeInfoModal()" class="btn-retro w-full sticky bottom-0">RETURN TO GAME</button>
+        </div>
+    </div>
+
+    <!-- Roulette Result Modal -->
+    <div id="roulette-modal" class="modal-overlay">
+        <div class="neon-box p-12 text-center max-w-sm">
+            <h2 class="text-4xl orbitron text-yellow-400 mb-2" id="r-modal-num">0</h2>
+            <p class="text-xl orbitron mb-6" id="r-modal-msg">YOU WIN!</p>
+            <button onclick="closeRouletteModal()" class="btn-retro w-full">COLLECT</button>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <header class="p-4 flex justify-between items-center border-b border-purple-900 bg-black/40 backdrop-blur-md sticky top-0 z-50">
+            <div class="flex items-center gap-4">
+                <button onclick="exitToLobby()" id="back-btn" class="btn-retro hidden !border-white/40 !text-white/60">BACK</button>
+                <div>
+                    <h1 class="text-xl font-bold text-[#00ffff] orbitron">RETRO ROYALE</h1>
+                    <p class="text-[10px] tracking-widest text-pink-500" id="bank-status">ULTRA CASINO</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <button id="info-btn" onclick="showGameInfo()" class="btn-retro hidden !border-cyan-400 !text-cyan-400 info-pulse">?</button>
+                <div class="text-right">
+                    <div class="text-[10px] opacity-60 uppercase">Credit Balance</div>
+                    <div class="text-xl font-bold text-[#00ffff]" id="balance-display">$1000</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- LOBBY SCREEN -->
+        <div id="lobby-screen" class="screen flex flex-col items-center justify-center min-h-[80vh] p-10">
+            <h2 class="text-5xl mb-12 font-bold tracking-tighter orbitron text-center italic text-white">CHOOSE YOUR GAME</h2>
+            
+           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+
+  <!-- POKER -->
+  <div class="neon-box p-8 border-yellow-500/50">
+    <h3 class="text-2xl orbitron text-yellow-400">TEXAS HOLD'EM</h3>
+    <p class="text-xs opacity-60 mt-2 mb-4">
+      Professional 4-player high-stakes table.
+    </p>
+    <div class="flex gap-3">
+      <button onclick="initGame('poker')" class="btn-retro">SINGLEPLAYER</button>
+<button onclick="hostRoom('poker')" class="btn-retro">HOST ROOM</button>
+<button onclick="joinRoom()" class="btn-retro">JOIN ROOM</button>
+
+    </div>
+  </div>
+
+  <!-- BLACKJACK -->
+  <div class="neon-box p-8 border-blue-500/50">
+    <h3 class="text-2xl orbitron text-blue-400">BLACKJACK</h3>
+    <p class="text-xs opacity-60 mt-2 mb-4">
+      Beat the house. Closest to 21 wins.
+    </p>
+    <div class="flex gap-3">
+      <button onclick="initGame('blackjack')" class="btn-retro">SINGLEPLAYER</button>
+<button onclick="hostRoom('blackjack')" class="btn-retro">HOST ROOM</button>
+<button onclick="joinRoom()" class="btn-retro">JOIN ROOM</button>
+
+    </div>
+  </div>
+
+  <!-- ROULETTE -->
+  <div class="neon-box p-8 border-red-500/50">
+    <h3 class="text-2xl orbitron text-red-400">ROULETTE</h3>
+    <p class="text-xs opacity-60 mt-2 mb-4">
+      Classic European wheel.
+    </p>
+    <div class="flex gap-3">
+      <button onclick="initGame('roulette')" class="btn-retro">SINGLEPLAYER</button>
+<button onclick="hostRoom('roulette')" class="btn-retro">HOST ROOM</button>
+<button onclick="joinRoom()" class="btn-retro">JOIN ROOM</button>
+
+    </div>
+  </div>
+
+  <!-- CRAPS -->
+  <div class="neon-box p-8 border-green-500/50">
+    <h3 class="text-2xl orbitron text-green-400">CRAPS</h3>
+    <p class="text-xs opacity-60 mt-2 mb-4">
+      Roll the dice and ride the momentum.
+    </p>
+    <div class="flex gap-3">
+      <button onclick="initGame('craps')" class="btn-retro">SINGLEPLAYER</button>
+<button onclick="hostRoom('craps')" class="btn-retro">HOST ROOM</button>
+<button onclick="joinRoom()" class="btn-retro">JOIN ROOM</button>
+
+    </div>
+  </div>
+
+</div>
+
+
+            <div id="break-bank-progress" class="mt-12 w-full max-w-md hidden">
+                <div class="flex justify-between text-[10px] mb-1">
+                    <span>BREAK THE BANK DEBT PROGRESS</span>
+                    <span id="progress-val">0%</span>
+                </div>
+                <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-yellow-400 transition-all w-0"></div>
+                </div>
+            </div>
+
+            <div class="mt-12 flex flex-col items-center gap-4">
+                <div class="flex gap-4">
+                    <button onclick="initGame('stats')" class="btn-retro px-8 py-3 !border-cyan-500 !text-cyan-400">VIEW STATS</button>
+                    <button onclick="manualSave()" class="btn-retro px-8 py-3 !border-green-500 !text-green-400 hover:!bg-green-500 hover:!text-white">SAVE GAME</button>
+                    <button onclick="closeCasino()" class="btn-retro px-8 py-3 !border-red-600 !text-red-500 hover:!bg-red-600 hover:!text-white">QUIT GAME</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATS SCREEN -->
+        <div id="stats-screen" class="screen hidden p-10 flex flex-col items-center">
+            <h2 class="text-4xl orbitron text-cyan-400 mb-10">PLAYER PROFILE</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+                <div class="neon-box p-6 text-center">
+                    <p class="text-[10px] opacity-60 uppercase mb-2">Total Bets</p>
+                    <p id="stat-total-bets" class="text-3xl font-bold">$0</p>
+                </div>
+                <div class="neon-box p-6 text-center border-yellow-500/50">
+                    <p class="text-[10px] opacity-60 uppercase mb-2">Biggest Win</p>
+                    <p id="stat-biggest-win" class="text-3xl font-bold text-yellow-400">$0</p>
+                </div>
+                <div class="neon-box p-6 text-center">
+                    <p class="text-[10px] opacity-60 uppercase mb-2">Hands Played</p>
+                    <p id="stat-total-hands" class="text-3xl font-bold">0</p>
+                </div>
+            </div>
+            
+            <div class="mt-10 w-full max-w-4xl neon-box p-8 bg-black/60">
+                <h3 class="orbitron text-pink-500 mb-6 border-b border-pink-500/30 pb-2">GAME BREAKDOWN</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div>
+                        <p class="text-xs opacity-50">Blackjack</p>
+                        <p id="stat-bj-played" class="text-xl">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs opacity-50">Roulette</p>
+                        <p id="stat-r-played" class="text-xl">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs opacity-50">Poker</p>
+                        <p id="stat-p-played" class="text-xl">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs opacity-50">Craps</p>
+                        <p id="stat-c-played" class="text-xl">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="exitToLobby()" class="mt-12 btn-retro px-16">RETURN TO LOBBY</button>
+        </div>
+
+        <!-- POKER SCREEN -->
+        <div id="poker-screen" class="screen hidden p-4 flex flex-col items-center">
+            <div class="table-felt w-full max-w-4xl h-[450px] relative rounded-[200px] mb-8 overflow-hidden">
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
+                    <div id="poker-pot-display" class="text-2xl font-bold text-yellow-400 orbitron drop-shadow-lg">POT: $0</div>
+                    <div id="p-current-bet-display" class="text-xs text-cyan-400 font-bold">MIN BET: $0</div>
+                    <div id="poker-community" class="flex gap-2 mt-4 justify-center h-[85px]"></div>
+                </div>
+
+                <div id="p-slot-0" class="poker-player-area absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+                    <div id="p-cards-0" class="flex gap-1 justify-center mb-1"></div>
+                    <div class="text-[10px] font-bold">YOU</div>
+                    <div id="p-hand-desc-0" class="text-[9px] text-yellow-400 uppercase h-3"></div>
+                    <div id="p-status-0" class="text-[10px] text-cyan-400 font-bold">READY</div>
+                </div>
+
+                <div id="p-slot-1" class="poker-player-area absolute left-6 top-1/2 -translate-y-1/2 text-center">
+                    <div id="p-cards-1" class="flex gap-1 justify-center mb-1"></div>
+                    <div class="text-[10px]">AI_ALPHA</div>
+                    <div id="p-status-1" class="text-[10px] font-bold">READY</div>
+                </div>
+
+                <div id="p-slot-2" class="poker-player-area absolute top-4 left-1/2 -translate-x-1/2 text-center">
+                    <div id="p-cards-2" class="flex gap-1 justify-center mb-1"></div>
+                    <div class="text-[10px]">AI_BETA</div>
+                    <div id="p-status-2" class="text-[10px] font-bold">READY</div>
+                </div>
+
+                <div id="p-slot-3" class="poker-player-area absolute right-6 top-1/2 -translate-y-1/2 text-center">
+                    <div id="p-cards-3" class="flex gap-1 justify-center mb-1"></div>
+                    <div class="text-[10px]">AI_GAMMA</div>
+                    <div id="p-status-3" class="text-[10px] font-bold">READY</div>
+                </div>
+            </div>
+
+            <div id="poker-controls" class="flex flex-col items-center gap-4">
+                <div id="poker-setup">
+                    <button onclick="startPoker()" class="btn-retro px-10 py-4 text-xl">BUY IN ($50)</button>
+                </div>
+                <div id="poker-actions" class="hidden flex gap-4 items-center">
+                    <button onclick="pokerAction('fold')" class="btn-retro !border-red-500 !text-red-500">FOLD</button>
+                    <button id="p-check-btn" onclick="pokerAction('check')" class="btn-retro">CHECK</button>
+                    <button id="p-call-btn" onclick="pokerAction('call')" class="btn-retro hidden">CALL $0</button>
+                    <div class="flex items-center gap-2 bg-black/40 p-2 border border-white/10 rounded">
+                        <input type="range" id="p-slider" min="10" max="200" step="10" value="20" oninput="updatePokerSliderLabel()">
+                        <button id="p-bet-btn" onclick="pokerAction('bet')" class="btn-retro">BET $20</button>
+                    </div>
+                </div>
+                <div id="p-msg" class="text-pink-500 font-bold h-6 orbitron uppercase text-sm"></div>
+            </div>
+        </div>
+
+        <!-- BLACKJACK SCREEN -->
+        <div id="blackjack-screen" class="screen hidden p-4 flex flex-col items-center">
+            <div class="table-felt w-full max-w-4xl h-[400px] relative rounded-b-[180px] mb-8 p-10 flex flex-col items-center justify-between">
+                <div class="text-center">
+                    <div id="bj-dealer-cards" class="flex gap-2 justify-center h-[85px]"></div>
+                    <div id="bj-dealer-score" class="text-xs mt-1"></div>
+                </div>
+                <div class="text-center">
+                    <div id="bj-player-cards" class="flex gap-2 justify-center h-[85px]"></div>
+                    <div id="bj-player-score" class="text-xs mt-1 Score">Score: 0</div>
+                </div>
+            </div>
+            <div id="bj-controls" class="flex gap-4">
+                <div id="bj-betting">
+                    <input type="number" id="bj-bet-input" value="50" class="bg-black border border-blue-500 p-2 w-24 text-center mr-2">
+                    <button onclick="startBlackjack()" class="btn-retro">DEAL</button>
+                </div>
+                <div id="bj-actions" class="hidden flex gap-3">
+                    <button onclick="bjAction('hit')" class="btn-retro">HIT</button>
+                    <button onclick="bjAction('stand')" class="btn-retro">STAND</button>
+                </div>
+            </div>
+            <div id="bj-msg" class="text-2xl font-bold orbitron text-white mt-4 h-8"></div>
+        </div>
+
+        <!-- ROULETTE SCREEN -->
+        <div id="roulette-screen" class="screen hidden p-4 flex flex-col items-center">
+            <div class="flex flex-col lg:flex-row gap-8 w-full max-w-6xl items-center">
+                <div class="relative w-[320px] h-[320px]">
+                    <div id="roulette-wheel" class="roulette-wheel-container">
+                        <div class="wheel-center"></div>
+                        <div id="wheel-numbers" class="absolute inset-0"></div>
+                    </div>
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-400 text-2xl z-30">▼</div>
+                </div>
+
+                <div class="flex-1">
+                    <div class="roulette-grid mb-4" id="roulette-board"></div>
+                    <div class="flex gap-2 justify-center mb-4 flex-wrap">
+                        <button onclick="setRBet('red')" class="btn-retro !border-red-600 !bg-red-900/20">RED</button>
+                        <button onclick="setRBet('black')" class="btn-retro !border-white/40 !bg-black">BLACK</button>
+                        <button onclick="setRBet('even')" class="btn-retro">EVEN</button>
+                        <button onclick="setRBet('odd')" class="btn-retro">ODD</button>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-black/40 border border-white/10">
+                        <div><span id="r-current-bet-display" class="text-yellow-400 font-bold uppercase">NONE Selected</span></div>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="r-bet-amt" value="25" class="bg-black border border-red-500 p-2 w-20 text-center">
+                            <button onclick="spinRoulette()" id="spin-btn" class="btn-retro !bg-red-600 !text-white !border-none px-8">SPIN</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="r-msg" class="mt-8 text-xl orbitron text-white"></div>
+        </div>
+
+        <!-- CRAPS SCREEN -->
+        <div id="craps-screen" class="screen hidden p-4 flex flex-col items-center">
+            <div class="table-felt w-full max-w-5xl p-8 rounded-lg mb-8 border-green-800">
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="border-2 border-white/20 p-4 rounded text-center cursor-pointer hover:bg-white/5" onclick="setCrapsBet('pass')">
+                        <h4 class="font-bold">PASS LINE</h4>
+                        <div id="bet-pass" class="text-yellow-400 font-bold">$0</div>
+                    </div>
+                    <div class="flex flex-col items-center justify-center">
+                        <div id="craps-dice" class="flex gap-4 mb-4">
+                            <div class="w-12 h-12 bg-white rounded flex items-center justify-center text-2xl text-black font-bold">1</div>
+                            <div class="w-12 h-12 bg-white rounded flex items-center justify-center text-2xl text-black font-bold">1</div>
+                        </div>
+                        <div id="craps-point-display" class="text-cyan-400 font-bold orbitron">POINT: OFF</div>
+                    </div>
+                    <div class="border-2 border-white/20 p-4 rounded text-center cursor-pointer hover:bg-white/5" onclick="setCrapsBet('field')">
+                        <h4 class="font-bold">FIELD</h4>
+                        <div id="bet-field" class="text-yellow-400 font-bold">$0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <input type="number" id="craps-bet-amt" value="10" class="bg-black border border-green-500 p-2 w-24 text-center">
+                <button onclick="rollCraps()" class="btn-retro px-12 py-4 text-xl">ROLL DICE</button>
+                <button onclick="clearCrapsBets()" class="btn-retro opacity-50">CLEAR</button>
+            </div>
+            <div id="craps-msg" class="mt-6 text-xl orbitron text-white"></div>
+        </div>
+
+        <div id="toast" class="fixed bottom-6 right-6 bg-cyan-950 border border-cyan-400 text-cyan-400 px-4 py-2 text-xs font-bold opacity-0 transition-all pointer-events-none translate-y-10 z-[200]"></div>
+    </div>
+<script type="module">
+    window.currentUID = null;
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } 
+  from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } 
+  from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC9nLHaL7Lc050imleIUeuq8EKD4Fi5qHU",
+  authDomain: "retro-royal-casino.firebaseapp.com",
+  projectId: "retro-royal-casino",
+  storageBucket: "retro-royal-casino.firebasestorage.app",
+  messagingSenderId: "441287288010",
+  appId: "1:441287288010:web:faa72345e09aa619138033"
+};
+
+const app = initializeApp(firebaseConfig);
+window.db = getFirestore(app);
+window.auth = getAuth(app);
+
+signInAnonymously(auth);
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+
+  window.currentUID = user.uid;
+  document.getElementById("login-btn").disabled = false;
+
+  const snap = await getDoc(doc(db, "players", user.uid));
+  if (snap.exists()) {
+    window.playerData = snap.data();
+    state.balance = playerData.balance;
+    document.getElementById("login-screen").style.display = "none";
+  }
+});
+window.doc = doc;
+window.setDoc = setDoc;
+window.getDoc = getDoc;
+window.updateDoc = updateDoc;
+window.onSnapshot = onSnapshot;
+</script>
+
+
+    <script>
+        const SUITS = ['♠', '♣', '♥', '♦'];
+        const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const VALUE_MAP = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+
+        const GAME_RULES = {
+            poker: {
+                title: "Texas Hold'em Rules",
+                rules: [
+                    "<b>Goal:</b> Make the best 5-card hand using your 2 hole cards and 5 community cards.",
+                    "<b>Buy-in:</b> You pay $50 to start. The initial pot is seeded with $200.",
+                    "<b>Hand Rankings (Highest to Lowest):</b><br>1. Royal Flush (A, K, Q, J, 10 same suit)<br>2. Straight Flush (5 in sequence, same suit)<br>3. Four of a Kind<br>4. Full House (3 of one kind, 2 of another)<br>5. Flush (5 of same suit)<br>6. Straight (5 in sequence)<br>7. Three of a Kind<br>8. Two Pair<br>9. One Pair<br>10. High Card",
+                    "<b>Rounds:</b> 4 rounds: Pre-flop, Flop (3 cards), Turn (1 card), and River (1 card).",
+                    "<b>Actions:</b> <b>CHECK</b> passes. <b>BET/RAISE</b> adds credits. <b>CALL</b> matches bet. <b>FOLD</b> quits hand.",
+                    "<b>Winning:</b> Best hand at showdown takes the pot. If everyone else folds, last player wins."
+                ]
+            },
+            blackjack: {
+                title: "Blackjack Rules",
+                rules: [
+                    "<b>Goal:</b> Get a total closer to 21 than the dealer without going over.",
+                    "<b>Card Values:</b> Numbers are face value. J, Q, K are 10. Aces are 1 or 11.",
+                    "<b>Play:</b> Click <b>HIT</b> to take a card. Click <b>STAND</b> to keep your total and end your turn.",
+                    "<b>Dealer Rule:</b> The dealer must draw cards until they reach at least 17.",
+                    "<b>Payouts:</b> Win pays 2:1. Blackjack (21 on first 2 cards) pays 3:1. Payouts are instant."
+                ]
+            },
+            roulette: {
+                title: "Roulette Rules",
+                rules: [
+                    "<b>Goal:</b> Predict where the ball will land on the wheel (Numbers 0-36).",
+                    "<b>Bets:</b> Select a bet type (Red, Black, Even, Odd, or Single Number) and set your amount.",
+                    "<b>Wheel:</b> The European wheel features a single '0' (Green). Landing on 0 loses all outside bets.",
+                    "<b>Payouts:</b> All winning bets currently pay <b>1:1</b> for simplicity in this terminal.",
+                    "<b>Process:</b> Choose your bet, click <b>SPIN</b>, and wait for the ball to settle."
+                ]
+            },
+            craps: {
+                title: "Craps Rules",
+                rules: [
+                    "<b>Goal:</b> Bet on the outcome of a pair of dice rolls.",
+                    "<b>Pass Line:</b> On first roll (Come Out), 7 or 11 wins. 2, 3, or 12 loses. Any other number sets the <b>POINT</b>.",
+                    "<b>The Point:</b> Once a point is set, you win if you roll the Point again before rolling a 7.",
+                    "<b>Field Bet:</b> A one-roll bet. Win if the next roll is 2, 3, 4, 9, 10, 11, or 12.",
+                    "<b>Payouts:</b> Winning bets pay double your wager (1:1 profit)."
+                ]
+            }
+        };
+
+        let state = { 
+            balance: 1000, 
+            activeGame: 'lobby', 
+            inDebt: false,
+            stats: { totalBets: 0, biggestWin: 0, totalHands: 0, bjPlayed: 0, rPlayed: 0, pPlayed: 0, cPlayed: 0 }
+        };
+
+        function manualSave() {
+            saveGame();
+            const t = document.getElementById('toast');
+            t.innerText = "GAME SAVED";
+            t.classList.remove('opacity-0', 'translate-y-10'); t.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => { t.classList.add('opacity-0', 'translate-y-10'); }, 1500);
+        }
+
+        function closeCasino() {
+            saveGame();
+            window.close();
+            setTimeout(() => {
+                const confirmQuit = confirm("Browser security prevented the window from closing automatically. Would you like to reset the session and go back to the start screen?");
+                if (confirmQuit) {
+                    location.reload();
+                }
+            }, 300);
+        }
+
+        function saveGame() { localStorage.setItem('retro_royale_save', JSON.stringify({ balance: state.balance, inDebt: state.inDebt, stats: state.stats })); }
+        function loadGame() {
+            const saved = localStorage.getItem('retro_royale_save');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                state.balance = parsed.balance; state.inDebt = parsed.inDebt;
+                if (parsed.stats) state.stats = parsed.stats;
+            }
+            updateBalance(0);
+        }
+
+        function updateBalance(amt) {
+            state.balance += amt;
+            if (amt > 0 && amt > state.stats.biggestWin) state.stats.biggestWin = amt;
+            document.getElementById('balance-display').innerText = `$${state.balance}`;
+            updateBankUI(); saveGame();
+            if (amt !== 0) {
+                const t = document.getElementById('toast');
+                t.innerText = (amt > 0 ? "+ $" : "- $") + Math.abs(amt);
+                t.classList.remove('opacity-0', 'translate-y-10'); t.classList.add('opacity-100', 'translate-y-0');
+                setTimeout(() => { t.classList.add('opacity-0', 'translate-y-10'); }, 2000);
+            }
+        }
+
+        function trackBet(amt, gameType) {
+            state.stats.totalBets += amt; state.stats.totalHands += 1;
+            if (gameType === 'bj') state.stats.bjPlayed += 1;
+            if (gameType === 'roulette') state.stats.rPlayed += 1;
+            if (gameType === 'poker') state.stats.pPlayed += 1;
+            if (gameType === 'craps') state.stats.cPlayed += 1;
+            saveGame();
+        }
+
+        function updateBankUI() {
+            const status = document.getElementById('bank-status');
+            const progressContainer = document.getElementById('break-bank-progress');
+            if (state.inDebt) {
+                status.innerText = "STATUS: IN DEBT (TARGET $2500)";
+                progressContainer.classList.remove('hidden');
+                const prog = Math.min(100, (state.balance / 2500) * 100);
+                document.getElementById('progress-bar').style.width = `${prog}%`;
+                document.getElementById('progress-val').innerText = `${Math.floor(prog)}%`;
+                if (state.balance >= 2500) { state.inDebt = false; state.balance -= 500; updateBalance(0); }
+            } else { status.innerText = "ULTRA CASINO"; progressContainer.classList.add('hidden'); }
+        }
+
+        function checkBankruptcy() {
+            if (state.balance <= 0 && !state.inDebt) {
+                setTimeout(() => { document.getElementById('bailout-modal').style.display = 'flex'; }, 1500);
+            }
+        }
+
+        window.acceptBailout = function() {
+            state.balance = 500; state.inDebt = true;
+            document.getElementById('bailout-modal').style.display = 'none';
+            updateBalance(0);
+        };
+
+        function showGameInfo() {
+            const data = GAME_RULES[state.activeGame];
+            if (data) {
+                document.getElementById('info-title').innerText = data.title;
+                const container = document.getElementById('info-content');
+                container.innerHTML = `<ul class="rule-list">${data.rules.map(r => `<li>${r}</li>`).join('')}</ul>`;
+                document.getElementById('info-modal').style.display = 'flex';
+            }
+        }
+
+        function closeInfoModal() {
+            document.getElementById('info-modal').style.display = 'none';
+        }
+
+        function initGame(gameId) {
+            state.activeGame = gameId;
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`${gameId}-screen`).classList.remove('hidden');
+            document.getElementById('back-btn').classList.remove('hidden');
+            
+            const infoBtn = document.getElementById('info-btn');
+            if (GAME_RULES[gameId]) {
+                infoBtn.classList.remove('hidden');
+            } else {
+                infoBtn.classList.add('hidden');
+            }
+
+            if (gameId === 'roulette') initRouletteBoard();
+            if (gameId === 'stats') renderStats();
+        }
+
+        function renderStats() {
+            document.getElementById('stat-total-bets').innerText = `$${state.stats.totalBets}`;
+            document.getElementById('stat-biggest-win').innerText = `$${state.stats.biggestWin}`;
+            document.getElementById('stat-total-hands').innerText = state.stats.totalHands;
+            document.getElementById('stat-bj-played').innerText = state.stats.bjPlayed;
+            document.getElementById('stat-r-played').innerText = state.stats.rPlayed;
+            document.getElementById('stat-p-played').innerText = state.stats.pPlayed;
+            document.getElementById('stat-c-played').innerText = state.stats.cPlayed;
+        }
+
+        function exitToLobby() {
+            state.activeGame = 'lobby';
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('lobby-screen').classList.remove('hidden');
+            document.getElementById('back-btn').classList.add('hidden');
+            document.getElementById('info-btn').classList.add('hidden');
+        }
+
+        function createCardUI(card, hidden = false) {
+            const div = document.createElement('div');
+            if (hidden) { div.className = 'card hidden-card'; return div; }
+            const isRed = card.suit === '♥' || card.suit === '♦';
+            div.className = `card ${isRed ? 'red' : ''}`;
+            div.innerHTML = `<div class="text-left">${card.value}</div><div class="text-center text-3xl my-auto">${card.suit}</div><div class="text-right rotate-180">${card.value}</div>`;
+            return div;
+        }
+
+        // ==========================================
+        // POKER LOGIC (REFACTORED FOR STABILITY)
+        // ==========================================
+        let poker = { deck: [], players: [], community: [], pot: 0, currentBet: 0, phase: 0, playerBetThisRound: 0, isTransitioning: false, safetyTimer: null };
+        function updatePokerSliderLabel() {
+            const val = document.getElementById('p-slider').value;
+            document.getElementById('p-bet-btn').innerText = poker.currentBet > 0 ? `RAISE $${val}` : `BET $${val}`;
+        }
+        function updatePlayerActionUI() {
+            const checkBtn = document.getElementById('p-check-btn');
+            const callBtn = document.getElementById('p-call-btn');
+            if (poker.currentBet > poker.playerBetThisRound) {
+                checkBtn.classList.add('hidden');
+                callBtn.classList.remove('hidden');
+                callBtn.innerText = `CALL $${poker.currentBet - poker.playerBetThisRound}`;
+            } else {
+                checkBtn.classList.remove('hidden');
+                callBtn.classList.add('hidden');
+            }
+            updatePokerSliderLabel();
+        }
+        function startPoker() {
+            if (state.balance < 50) { checkBankruptcy(); return; }
+            trackBet(50, 'poker'); updateBalance(-50);
+            poker = { pot: 200, currentBet: 0, community: [], deck: [], phase: 0, playerBetThisRound: 0, players: [], isTransitioning: false };
+            for (let s of SUITS) for (let v of VALUES) poker.deck.push({suit: s, value: v});
+            poker.deck.sort(() => Math.random() - 0.5);
+            poker.players = [
+                { id: 0, name: 'YOU', cards: [poker.deck.pop(), poker.deck.pop()], status: 'active' },
+                { id: 1, name: 'ALPHA', cards: [poker.deck.pop(), poker.deck.pop()], status: 'active' },
+                { id: 2, name: 'BETA', cards: [poker.deck.pop(), poker.deck.pop()], status: 'active' },
+                { id: 3, name: 'GAMMA', cards: [poker.deck.pop(), poker.deck.pop()], status: 'active' }
+            ];
+            document.getElementById('poker-setup').classList.add('hidden');
+            document.getElementById('poker-actions').classList.remove('hidden');
+            document.getElementById('p-msg').innerText = "PLAYER TURN";
+            renderPoker();
+            updatePlayerActionUI();
+        }
+        function renderPoker(reveal = false) {
+            poker.players.forEach((p, i) => {
+                const cardArea = document.getElementById(`p-cards-${i}`);
+                if (!cardArea) return;
+                cardArea.innerHTML = '';
+                p.cards.forEach(c => cardArea.appendChild(createCardUI(c, i !== 0 && !reveal)));
+                const statusEl = document.getElementById(`p-status-${i}`);
+                if (p.status === 'folded') {
+                    statusEl.innerText = "FOLDED";
+                    statusEl.className = "text-[10px] text-red-500 font-bold";
+                }
+            });
+            const commArea = document.getElementById('poker-community');
+            commArea.innerHTML = '';
+            poker.community.forEach(c => commArea.appendChild(createCardUI(c)));
+            document.getElementById('poker-pot-display').innerText = `POT: $${poker.pot}`;
+            document.getElementById('p-current-bet-display').innerText = poker.currentBet > 0 ? `CURRENT BET: $${poker.currentBet}` : `MIN BET: $0`;
+            if (poker.players[0] && poker.players[0].status !== 'folded') {
+                const evalResult = evaluatePokerHand([...poker.players[0].cards, ...poker.community]);
+                document.getElementById('p-hand-desc-0').innerText = evalResult.desc;
+            }
+        }
+        async function aiTurn(idx) {
+            const p = poker.players[idx];
+            if (p.status !== 'active') return;
+            const slot = document.getElementById(`p-slot-${idx}`);
+            const status = document.getElementById(`p-status-${idx}`);
+            slot.classList.add('active-turn');
+            status.innerText = "THINKING...";
+            await new Promise(r => setTimeout(r, 600));
+            
+            const hand = evaluatePokerHand([...p.cards, ...poker.community]);
+            const toCall = poker.currentBet;
+            
+            if (toCall > 0) {
+                if (hand.score > 200 && Math.random() > 0.8) {
+                    const raise = toCall + 20;
+                    poker.pot += raise; poker.currentBet = raise;
+                    status.innerText = `RAISE $${raise}`;
+                } else if (hand.score > 50 || Math.random() > 0.4) {
+                    poker.pot += toCall;
+                    status.innerText = `CALL $${toCall}`;
+                } else {
+                    p.status = 'folded'; status.innerText = "FOLD";
+                }
+            } else {
+                if (hand.score > 100 && Math.random() > 0.7) {
+                    poker.currentBet = 20; poker.pot += 20;
+                    status.innerText = "BET $20";
+                } else {
+                    status.innerText = "CHECK";
+                }
+            }
+            renderPoker(); 
+            await new Promise(r => setTimeout(r, 400));
+            slot.classList.remove('active-turn');
+        }
+        async function pokerAction(type) {
+            if (poker.isTransitioning) return;
+            poker.isTransitioning = true;
+
+            // Safety catch: unlock if stuck
+            clearTimeout(poker.safetyTimer);
+            poker.safetyTimer = setTimeout(() => {
+                poker.isTransitioning = false;
+                document.getElementById('poker-actions').classList.remove('opacity-50', 'pointer-events-none');
+            }, 5000);
+            
+            const actionContainer = document.getElementById('poker-actions');
+            actionContainer.classList.add('opacity-50', 'pointer-events-none');
+            
+            if (type === 'fold') {
+                poker.players[0].status = 'folded';
+                document.getElementById('p-status-0').innerText = "FOLDED";
+            } else if (type === 'call') {
+                const diff = poker.currentBet - poker.playerBetThisRound;
+                updateBalance(-diff); poker.pot += diff;
+                poker.playerBetThisRound = poker.currentBet;
+                document.getElementById('p-status-0').innerText = `CALL $${diff}`;
+            } else if (type === 'bet') {
+                const val = parseInt(document.getElementById('p-slider').value);
+                updateBalance(-val); poker.pot += val;
+                poker.currentBet = val; poker.playerBetThisRound = val;
+                document.getElementById('p-status-0').innerText = `BET $${val}`;
+            } else {
+                document.getElementById('p-status-0').innerText = "CHECK";
+            }
+            
+            renderPoker();
+            for (let i = 1; i < 4; i++) await aiTurn(i);
+            
+            // Advance state
+            if (poker.players[0].status === 'folded') { 
+                finishPoker(); 
+                return; // finishPoker resets transitioning
+            }
+            
+            poker.playerBetThisRound = 0; 
+            poker.currentBet = 0;
+            
+            if (poker.phase === 0) {
+                poker.community.push(poker.deck.pop(), poker.deck.pop(), poker.deck.pop());
+                poker.phase = 1; document.getElementById('p-msg').innerText = "THE FLOP";
+            } else if (poker.phase === 1) {
+                poker.community.push(poker.deck.pop());
+                poker.phase = 2; document.getElementById('p-msg').innerText = "THE TURN";
+            } else if (poker.phase === 2) {
+                poker.community.push(poker.deck.pop());
+                poker.phase = 3; document.getElementById('p-msg').innerText = "THE RIVER";
+            } else {
+                finishPoker(); 
+                return; // finishPoker resets transitioning
+            }
+            
+            renderPoker(); 
+            updatePlayerActionUI();
+            
+            // Only reset if we didn't exit via finishPoker
+            poker.isTransitioning = false;
+            actionContainer.classList.remove('opacity-50', 'pointer-events-none');
+            clearTimeout(poker.safetyTimer);
+        }
+
+        function finishPoker() {
+            clearTimeout(poker.safetyTimer);
+            renderPoker(true);
+            const scores = poker.players.map(p => {
+                if (p.status === 'folded') return { score: -1, id: p.id };
+                return { ...evaluatePokerHand([...p.cards, ...poker.community]), id: p.id };
+            });
+            scores.sort((a, b) => b.score - a.score);
+            const winner = scores[0]; const isYou = winner.id === 0;
+            if (poker.players[0].status === 'folded') {
+                document.getElementById('p-msg').innerText = "YOU FOLDED. AI WINS.";
+            } else {
+                document.getElementById('p-msg').innerText = isYou ? `YOU WIN $${poker.pot} (${winner.desc})!` : `AI WINS WITH ${winner.desc}`;
+                if (isYou) updateBalance(poker.pot);
+            }
+            document.getElementById('poker-actions').classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById('poker-setup').classList.remove('hidden');
+                document.getElementById('p-msg').innerText = ''; 
+                poker.community = [];
+                poker.players.forEach((_, i) => {
+                    const statusEl = document.getElementById(`p-status-${i}`);
+                    if (statusEl) {
+                        statusEl.innerText = "READY";
+                        statusEl.className = "text-[10px] text-cyan-400 font-bold";
+                    }
+                });
+                renderPoker();
+                // Ensure reset
+                poker.isTransitioning = false;
+                document.getElementById('poker-actions').classList.remove('opacity-50', 'pointer-events-none');
+            }, 5000);
+        }
+        function evaluatePokerHand(cards) {
+            if (cards.length < 5) return { score: 0, desc: "Waiting..." };
+            const values = cards.map(c => VALUE_MAP[c.value]).sort((a,b) => a-b);
+            const suits = cards.map(c => c.suit);
+            const counts = {}; values.forEach(v => counts[v] = (counts[v] || 0) + 1);
+            const countVals = Object.values(counts).sort((a,b) => b-a);
+            const isFlush = SUITS.some(s => suits.filter(x => x === s).length >= 5);
+            let isStraight = false; let highestStraight = 0;
+            const uniqueVals = [...new Set(values)];
+            for(let i=0; i <= uniqueVals.length - 5; i++) {
+                if (uniqueVals[i+4] - uniqueVals[i] === 4) { isStraight = true; highestStraight = uniqueVals[i+4]; }
+            }
+            if ([2,3,4,5,14].every(v => uniqueVals.includes(v))) { isStraight = true; highestStraight = 5; }
+            if (isFlush && isStraight && highestStraight === 14) return { score: 900, desc: "Royal Flush" };
+            if (isFlush && isStraight) return { score: 800 + highestStraight, desc: "Straight Flush" };
+            if (countVals[0] === 4) return { score: 700, desc: "Four of a Kind" };
+            if (countVals[0] === 3 && countVals[1] >= 2) return { score: 600, desc: "Full House" };
+            if (isFlush) return { score: 500, desc: "Flush" };
+            if (isStraight) return { score: 400 + highestStraight, desc: "Straight" };
+            if (countVals[0] === 3) return { score: 300, desc: "Three of a Kind" };
+            if (countVals[0] === 2 && countVals[1] === 2) return { score: 200, desc: "Two Pair" };
+            if (countVals[0] === 2) return { score: 100, desc: "Pair" };
+            return { score: values[values.length - 1], desc: "High Card" };
+        }
+
+        // ==========================================
+        // BLACKJACK
+        // ==========================================
+        let bj = { deck: [], player: [], dealer: [], bet: 0, gameOver: true };
+        function resetBlackjack() {
+            bj = { deck: [], player: [], dealer: [], bet: 0, gameOver: true };
+            document.getElementById('bj-dealer-cards').innerHTML = '';
+            document.getElementById('bj-player-cards').innerHTML = '';
+            document.getElementById('bj-dealer-score').innerText = '';
+            document.getElementById('bj-player-score').innerText = 'Score: 0';
+            document.getElementById('bj-msg').innerText = 'Place your bet';
+            document.getElementById('bj-betting').classList.remove('hidden');
+            document.getElementById('bj-actions').classList.add('hidden');
+        }
+        function getBJScore(hand) {
+            let score = 0; let aces = 0;
+            hand.forEach(c => {
+                if (c.value === 'A') aces++;
+                else if (['J','Q','K'].includes(c.value)) score += 10;
+                else score += parseInt(c.value);
+            });
+            for(let i=0; i<aces; i++) score += (score + 11 > 21) ? 1 : 11;
+            return score;
+        }
+        function startBlackjack() {
+            const bet = parseInt(document.getElementById('bj-bet-input').value);
+            if (bet > state.balance || bet <= 0) { checkBankruptcy(); return; }
+            trackBet(bet, 'bj'); updateBalance(-bet); bj.bet = bet; bj.gameOver = false; bj.deck = [];
+            for (let s of SUITS) for (let v of VALUES) bj.deck.push({suit: s, value: v});
+            bj.deck.sort(() => Math.random() - 0.5);
+            bj.player = [bj.deck.pop(), bj.deck.pop()]; bj.dealer = [bj.deck.pop(), bj.deck.pop()];
+            document.getElementById('bj-betting').classList.add('hidden');
+            document.getElementById('bj-actions').classList.remove('hidden');
+            document.getElementById('bj-msg').innerText = '';
+            renderBJ();
+        }
+        function renderBJ(revealDealer = false) {
+            const pArea = document.getElementById('bj-player-cards'); const dArea = document.getElementById('bj-dealer-cards');
+            pArea.innerHTML = ''; dArea.innerHTML = '';
+            bj.player.forEach(c => pArea.appendChild(createCardUI(c)));
+            bj.dealer.forEach((c, i) => dArea.appendChild(createCardUI(c, i === 1 && !revealDealer)));
+            document.getElementById('bj-player-score').innerText = `Score: ${getBJScore(bj.player)}`;
+            if (revealDealer) document.getElementById('bj-dealer-score').innerText = `Score: ${getBJScore(bj.dealer)}`;
+        }
+        async function bjAction(type) {
+            if (bj.gameOver) return;
+            if (type === 'hit') {
+                bj.player.push(bj.deck.pop()); renderBJ();
+                if (getBJScore(bj.player) > 21) bjFinish('BUST');
+            } else if (type === 'stand') {
+                renderBJ(true);
+                while (getBJScore(bj.dealer) < 17) {
+                    await new Promise(r => setTimeout(r, 600));
+                    bj.dealer.push(bj.deck.pop()); renderBJ(true);
+                }
+                const p = getBJScore(bj.player); const d = getBJScore(bj.dealer);
+                if (d > 21) bjFinish('DEALER BUSTS - WIN');
+                else if (d > p) bjFinish('DEALER WINS');
+                else if (p > d) bjFinish('YOU WIN');
+                else bjFinish('PUSH');
+            }
+        }
+        function bjFinish(msg) {
+            bj.gameOver = true; document.getElementById('bj-msg').innerText = msg;
+            document.getElementById('bj-actions').classList.add('hidden');
+            if (msg.includes('WIN')) updateBalance(bj.bet * 2); else if (msg.includes('PUSH')) updateBalance(bj.bet);
+            checkBankruptcy(); setTimeout(resetBlackjack, 3000);
+        }
+
+        // ==========================================
+        // ROULETTE LOGIC (FIXED)
+        // ==========================================
+        let rBet = { type: null, value: null };
+        let currentWheelRotation = 0;
+        const ROULETTE_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+        const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+
+        function initRouletteBoard() {
+            const board = document.getElementById('roulette-board');
+            board.innerHTML = '<div onclick="setRBet(\'num\', 0)" class="r-cell r-green row-span-3">0</div>';
+            for (let i = 1; i <= 36; i++) {
+                const color = REDS.includes(i) ? 'r-red' : 'r-black';
+                board.innerHTML += `<div onclick="setRBet('num', ${i})" class="r-cell ${color}">${i}</div>`;
+            }
+
+            const wheelNums = document.getElementById('wheel-numbers');
+            wheelNums.innerHTML = '';
+            ROULETTE_ORDER.forEach((num, i) => {
+                const angle = (i * 360) / 37;
+                const div = document.createElement('div');
+                div.className = 'wheel-number-item';
+                div.style.transform = `rotate(${angle}deg)`;
+                div.style.color = num === 0 ? '#0f0' : (REDS.includes(num) ? '#f44' : '#fff');
+                div.innerText = num;
+                wheelNums.appendChild(div);
+            });
+        }
+
+        function setRBet(type, val = null) {
+            rBet = { type, value: val };
+            document.getElementById('r-current-bet-display').innerText = `${type.toUpperCase()} ${val !== null ? val : ''}`;
+        }
+
+        async function spinRoulette() {
+            const amt = parseInt(document.getElementById('r-bet-amt').value);
+            if (!rBet.type || amt > state.balance || amt <= 0) return;
+            
+            const spinBtn = document.getElementById('spin-btn');
+            if (spinBtn.disabled) return;
+            
+            trackBet(amt, 'roulette'); 
+            updateBalance(-amt);
+            spinBtn.disabled = true;
+
+            const wheel = document.getElementById('roulette-wheel');
+            const winningIndex = Math.floor(Math.random() * 37);
+            const winningNum = ROULETTE_ORDER[winningIndex];
+            
+            const rotations = 8;
+            const segmentDeg = 360 / 37;
+            const targetRotation = (rotations * 360) - (winningIndex * segmentDeg);
+            
+            currentWheelRotation += targetRotation;
+            
+            wheel.style.transition = 'transform 4s cubic-bezier(0.15, 0, 0.15, 1)';
+            wheel.style.transform = `rotate(${currentWheelRotation}deg)`;
+
+            setTimeout(() => {
+                let win = false;
+                if (rBet.type === 'num' && rBet.value === winningNum) win = true;
+                else if (rBet.type === 'red' && REDS.includes(winningNum)) win = true;
+                else if (rBet.type === 'black' && !REDS.includes(winningNum) && winningNum !== 0) win = true;
+                else if (rBet.type === 'even' && winningNum !== 0 && winningNum % 2 === 0) win = true;
+                else if (rBet.type === 'odd' && winningNum % 2 !== 0) win = true;
+
+                document.getElementById('r-modal-num').innerText = winningNum;
+                document.getElementById('r-modal-num').style.color = winningNum === 0 ? '#0f0' : (REDS.includes(winningNum) ? '#f44' : '#fff');
+                
+                if (win) {
+                    const payout = amt * 2;
+                    document.getElementById('r-modal-msg').innerText = `YOU WON $${payout}!`;
+                    document.getElementById('r-modal-msg').className = "text-xl orbitron text-green-400 mb-6";
+                    updateBalance(payout);
+                } else {
+                    document.getElementById('r-modal-msg').innerText = "HOUSE WINS";
+                    document.getElementById('r-modal-msg').className = "text-xl orbitron text-red-500 mb-6";
+                }
+
+                document.getElementById('roulette-modal').style.display = 'flex';
+                spinBtn.disabled = false;
+                checkBankruptcy();
+                
+                currentWheelRotation %= 360;
+                setTimeout(() => {
+                    wheel.style.transition = 'none';
+                    wheel.style.transform = `rotate(${currentWheelRotation}deg)`;
+                }, 500);
+            }, 4100);
+        }
+
+        function closeRouletteModal() {
+            document.getElementById('roulette-modal').style.display = 'none';
+        }
+
+        // ==========================================
+        // CRAPS
+        // ==========================================
+        let craps = { point: 0, bets: {} };
+        function setCrapsBet(type) {
+            const amt = parseInt(document.getElementById('craps-bet-amt').value);
+            if (amt > state.balance) return; trackBet(amt, 'craps'); updateBalance(-amt);
+            craps.bets[type] = (craps.bets[type] || 0) + amt;
+            document.getElementById(`bet-${type}`).innerText = `$${craps.bets[type]}`;
+        }
+        function clearCrapsBets() { craps.bets = {}; document.getElementById('bet-pass').innerText = '$0'; document.getElementById('bet-field').innerText = '$0'; }
+        function rollCraps() {
+            const d1 = Math.floor(Math.random() * 6) + 1; const d2 = Math.floor(Math.random() * 6) + 1;
+            const total = d1 + d2; const dice = document.getElementById('craps-dice').children;
+            dice[0].innerText = d1; dice[1].innerText = d2;
+            let winAmt = 0;
+            if (craps.point === 0) {
+                if (total === 7 || total === 11) winAmt += (craps.bets.pass || 0) * 2;
+                else if (total === 2 || total === 3 || total === 12) craps.bets.pass = 0;
+                else craps.point = total;
+            } else {
+                if (total === craps.point) { winAmt += (craps.bets.pass || 0) * 2; craps.point = 0; }
+                else if (total === 7) { craps.point = 0; craps.bets.pass = 0; }
+            }
+            if ([2,3,4,9,10,11,12].includes(total)) winAmt += (craps.bets.field || 0) * 2;
+            craps.bets.field = 0; document.getElementById('bet-field').innerText = '$0';
+            document.getElementById('bet-pass').innerText = `$${craps.bets.pass || 0}`;
+            document.getElementById('craps-point-display').innerText = `POINT: ${craps.point || 'OFF'}`;
+            if (winAmt > 0) updateBalance(winAmt);
+            checkBankruptcy();
+        }
+
+        window.onload = function() { loadGame(); resetBlackjack(); };
+    </script>
+
+<script>
+/* ======================
+   PLAYER LOGIN
+====================== */
+async function loginPlayer() {
+  if (!currentUID) return alert("Still connecting to server...");
+
+  const name = document.getElementById("player-name").value.trim();
+  if (!name) return alert("Enter a name");
+
+  const ref = doc(db, "players", currentUID);
+
+  await setDoc(ref, {
+    name,
+    balance: state.balance || 1000
+  }, { merge: true });
+
+  window.playerData = { name, balance: state.balance || 1000 };
+  document.getElementById("login-screen").style.display = "none";
+}
+
+
+ 
+
+/* ======================
+   MULTIPLAYER CORE
+====================== */
+let gameMode = "single";
+let roomId = null;
+let isHost = false;
+
+async function hostRoom(game) {
+  gameMode = "multi";
+  isHost = true;
+  roomId = crypto.randomUUID().slice(0,6);
+
+  await setDoc(doc(db, "rooms", roomId), {
+    game,
+    host: auth.currentUser.uid,
+    players: {
+      [auth.currentUser.uid]: playerData
+    },
+    gameState: null
+  });
+
+  alert("ROOM CODE: " + roomId);
+  initGame(game);
+  listenRoom();
+}
+
+async function joinRoom() {
+  const code = prompt("Enter Room Code");
+  if (!code) return;
+
+  roomId = code;
+  gameMode = "multi";
+
+  await updateDoc(doc(db, "rooms", roomId), {
+    [`players.${auth.currentUser.uid}`]: playerData
+  });
+
+  listenRoom();
+}
+
+/* ======================
+   ROOM SYNC
+====================== */
+function listenRoom() {
+  onSnapshot(doc(db, "rooms", roomId), snap => {
+    if (!snap.exists()) return;
+    if (isHost) return;
+
+    const gs = snap.data().gameState;
+    if (!gs) return;
+
+    state = gs.state;
+    poker = gs.poker;
+    bj = gs.bj;
+    rBet = gs.rBet;
+    craps = gs.craps;
+
+    updateBalance(0);
+    renderPoker?.();
+    renderBJ?.();
+  });
+}
+
+function syncRoom() {
+  if (gameMode !== "multi" || !isHost) return;
+
+  updateDoc(doc(db, "rooms", roomId), {
+    gameState: { state, poker, bj, rBet, craps }
+  });
+}
+
+/* ======================
+   DISABLE AI IN MULTI
+====================== */
+function isAIAllowed() {
+  return gameMode === "single";
+}
+
+/* ======================
+   HOOK GAME ACTIONS
+====================== */
+const _pokerAction = pokerAction;
+pokerAction = function(type) {
+  if (gameMode === "multi" && !isHost) return;
+  _pokerAction(type);
+  syncRoom();
+};
+
+const _bjAction = bjAction;
+bjAction = function(type) {
+  if (gameMode === "multi" && !isHost) return;
+  _bjAction(type);
+  syncRoom();
+};
+
+const _spinRoulette = spinRoulette;
+spinRoulette = function() {
+  if (gameMode === "multi" && !isHost) return;
+  _spinRoulette();
+  syncRoom();
+};
+
+const _rollCraps = rollCraps;
+rollCraps = function() {
+  if (gameMode === "multi" && !isHost) return;
+  _rollCraps();
+  syncRoom();
+};
+</script>
+
+</body>
+</html>
