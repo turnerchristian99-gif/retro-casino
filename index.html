@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Royale Ultra</title>
+    
+    <!-- Website Icon (Favicon) - High-compatibility SVG Neon Slot Machine -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='20' width='60' height='70' rx='5' fill='%23222' stroke='%230ff' stroke-width='4'/%3E%3Crect x='30' y='35' width='40' height='20' fill='%23000' stroke='%23f0f' stroke-width='2'/%3E%3Ccircle cx='85' cy='40' r='6' fill='%23f0f'/%3E%3Cpath d='M85 40 L85 70' stroke='%23f0f' stroke-width='4'/%3E%3Ctext x='50' y='50' font-family='Arial' font-size='12' fill='%230ff' text-anchor='middle'%3E777%3C/text%3E%3C/svg%3E">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-blue: #00ffff;
+            --neon-purple: #9d00ff;
+            --dark-bg: #050110;
+            --felt-green: #0a4d2e;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            background-image: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            color: #e0e0e0;
+            font-family: 'Space Mono', monospace;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        h1, h2, h3, .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), radial-gradient(rgba(18, 16, 16, 0) 0%, rgba(0, 0, 0, 0.2) 100%);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .neon-box {
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 10px rgba(0, 255, 255, 0.2);
+            background: rgba(13, 2, 33, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn-retro {
+            background: rgba(255, 0, 255, 0.1);
+            border: 1px solid var(--neon-pink);
+            color: var(--neon-pink);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            padding: 8px 16px;
+        }
+
+        .btn-retro:hover:not(:disabled) {
+            background: var(--neon-pink);
+            color: white;
+            box-shadow: 0 0 20px var(--neon-pink);
+        }
+
+        .btn-retro:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .card {
+            width: 60px;
+            height: 85px;
+            background: #fff;
+            border-radius: 6px;
+            color: #111;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            font-size: 12px;
+            position: relative;
+        }
+        .card.red { color: #d00; }
+        .card.hidden-card {
+            background: repeating-linear-gradient(45deg, #222, #222 5px, #444 5px, #444 10px);
+            border: 2px solid #555;
+        }
+
+        .table-felt {
+            background: radial-gradient(circle, var(--felt-green) 0%, #052617 100%);
+            border: 12px solid #2d1b0f;
+            border-radius: 20px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .roulette-grid {
+            display: grid;
+            grid-template-columns: repeat(14, 1fr);
+            gap: 2px;
+            background: #111;
+            padding: 2px;
+            border: 2px solid #444;
+        }
+        .r-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .r-cell:hover { filter: brightness(1.5); }
+        .r-red { background: #d00; }
+        .r-black { background: #111; }
+        .r-green { background: #0a0; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; align-items: center;
+            justify-content: center; z-index: 200; padding: 20px;
+        }
+
+        .roulette-wheel-container {
+            width: 320px;
+            height: 320px;
+            border: 12px solid #2d1b0f;
+            border-radius: 50%;
+            position: relative;
+            background: #111;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            transition: transform 4s cubic-bezier(0.15, 0, 0.15, 1);
+        }
+
+        .wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, #ddd, #666);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        .wheel-number-item {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            width: 24px;
+            margin-left: -12px;
+            height: 140px;
+            transform-origin: bottom center;
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .poker-player-area {
+            transition: all 0.3s ease;
+            padding: 10px;
+            border-radius: 10px;
+            width: 120px;
+        }
+        .poker-player-area.active-turn {
+            background: rgba(0, 255, 255, 0.15);
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: scale(1.1);
+        }
+        #poker-community {
+    z-index: 10;
+    margin-bottom: 20px; /* Push community cards up away from player 0 */
+    min-height: 120px;
+}
+.poker-player-slot {
+    position: relative;
+    z-index: 5;
+}
+
+        .info-pulse {
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+        }
+
+        .rule-list { text-align: left; margin-bottom: 20px; }
+        .rule-list li { margin-bottom: 8px; font-size: 13px; line-height: 1.4; }
+        .rule-list b { color: var(--neon-blue); }
+        
+        #info-modal .neon-box { max-height: 90vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div id="login-screen" class="fixed inset-0 bg-black flex items-center justify-center z-50">
+  <div class="neon-box p-8 w-80 text-center">
+    <h2 class="orbitron text-xl text-cyan-400 mb-4">RETRO ROYAL CASINO</h2>
+
+    <input id="player-name" placeholder="Your Name"
+      class="w-full mb-3 p-2 bg-black border border-cyan-400 text-cyan-300">
+
+    <button id="login-btn" onclick="loginPlayer()" class="btn-retro w-full">
+  ENTER CASINO
+</button>
+
+  </div>
+</div>
+
+    <div class="crt-overlay"></div>
+
+    <!-- Bankrupt Modal -->
+    <div id="bailout-modal" class="modal-overlay">
+        <div class="neon-box p-8 max-w-md text-center">
+            <h2 class="text-3xl orbitron text-red-500 mb-4">BANKRUPT</h2>
+            <p class="mb-6">You are out of credits. We can lend you <span class="text-yellow-400 font-bold">$500</span>, but you'll be in <span class="text-red-400">DEBT</span>.</p>
+            <p class="text-xs opacity-60 mb-6">In Debt mode, you must reach $2,500 to "Break the Bank" and return to normal play.</p>
+            <button onclick="acceptBailout()" class="btn-retro w-full">ACCEPT LOAN</button>
+        </div>
+    </div>
+
+    <!-- Rule Info Modal -->
+    <div id="info-modal" class="modal-overlay" onclick="closeInfoModal()">
+        <div class="neon-box p-8 max-w-lg w-full" onclick="event.stopPropagation()">
+            <h2 class="text-2xl orbitron text-cyan-400 mb-4 flex items-center gap-2">
+                <span>HOW TO PLAY</span>
+                <button onclick="closeInfoModal()" class="ml-auto text-sm btn-retro px-3">CLOSE</button>
+            </h2>
+            <div id="info-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Roulette Wheel Spin Modal -->
+    <div id="roulette-spin-modal" class="modal-overlay">
+        <div class="flex flex-col items-center">
+            <div class="roulette-wheel-container" id="roulette-wheel">
+                <div class="wheel-center"></div>
+            </div>
+            <p class="text-2xl orbitron mt-6 text-cyan-400" id="roulette-result-text"></p>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto p-6">
+        <header class="mb-8 flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h1 class="text-5xl orbitron bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
+                    RETRO ROYALE ULTRA
+                </h1>
+                <p class="text-xs opacity-60 tracking-widest">EST. 2025 // GAMING PARADISE</p>
+            </div>
+            <div class="flex gap-4 items-center">
+                <button onclick="resetAll()" class="btn-retro text-xs px-3 py-1">RESET SAVE</button>
+            </div>
+        </header>
+
+        <!-- HUD Bar -->
+        <div class="neon-box p-4 mb-6 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <p class="text-xs opacity-60 mb-1">BALANCE</p>
+                <p class="text-3xl orbitron" style="color: var(--neon-blue);" id="hud-balance">$1000</p>
+            </div>
+            <div class="flex gap-6">
+                <div>
+                    <p class="text-xs opacity-60 mb-1">BIGGEST WIN</p>
+                    <p class="text-xl orbitron text-yellow-400" id="hud-bigwin">$0</p>
+                </div>
+                <div>
+                    <p class="text-xs opacity-60 mb-1">TOTAL WAGERED</p>
+                    <p class="text-xl orbitron text-green-400" id="hud-wagered">$0</p>
+                </div>
+                <div>
+                    <p class="text-xs opacity-60 mb-1">GAMES PLAYED</p>
+                    <p class="text-xl orbitron text-cyan-300" id="hud-games">0</p>
+                </div>
+            </div>
+            <div id="debt-warning" class="bg-red-900 bg-opacity-40 px-4 py-2 rounded border border-red-600" style="display: none;">
+                <p class="text-xs text-red-300 mb-1">IN DEBT</p>
+                <p class="text-sm text-white orbitron">REACH $2,500 TO BREAK THE BANK</p>
+            </div>
+        </div>
+
+        <!-- Game Menu -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <button onclick="showGame('blackjack')" class="btn-retro py-6 text-sm flex flex-col items-center gap-2">
+                <span class="text-2xl">🂡</span>
+                <span>BLACKJACK</span>
+            </button>
+            <button onclick="showGame('roulette')" class="btn-retro py-6 text-sm flex flex-col items-center gap-2">
+                <span class="text-2xl">🎰</span>
+                <span>ROULETTE</span>
+            </button>
+            <button onclick="showGame('poker')" class="btn-retro py-6 text-sm flex flex-col items-center gap-2">
+                <span class="text-2xl">🃏</span>
+                <span>POKER</span>
+            </button>
+            <button onclick="showGame('craps')" class="btn-retro py-6 text-sm flex flex-col items-center gap-2">
+                <span class="text-2xl">🎲</span>
+                <span>CRAPS</span>
+            </button>
+            <button onclick="showGame('slots')" class="btn-retro py-6 text-sm flex flex-col items-center gap-2">
+                <span class="text-2xl">💎</span>
+                <span>SLOTS</span>
+            </button>
+        </div>
+
+        <!-- Game Panels -->
+
+        <!-- BLACKJACK PANEL -->
+        <div id="panel-blackjack" class="game-panel" style="display: none;">
+            <div class="neon-box p-6 table-felt">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl orbitron text-white">BLACKJACK</h2>
+                    <button onclick="showInfoModal('blackjack')" class="btn-retro px-4 info-pulse">RULES</button>
+                </div>
+
+                <!-- Dealer Area -->
+                <div class="mb-8 text-center">
+                    <p class="text-sm opacity-70 mb-2">DEALER</p>
+                    <div class="flex justify-center gap-2 mb-2" id="dealer-hand"></div>
+                    <p class="text-sm" id="dealer-score">SCORE: 0</p>
+                </div>
+
+                <!-- Player Area -->
+                <div class="mb-8 text-center">
+                    <p class="text-sm opacity-70 mb-2">PLAYER</p>
+                    <div class="flex justify-center gap-2 mb-2" id="player-hand"></div>
+                    <p class="text-sm" id="player-score">SCORE: 0</p>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex gap-3 flex-wrap justify-center mb-4">
+                    <button onclick="bjAction('hit')" id="btn-hit" class="btn-retro" disabled>HIT</button>
+                    <button onclick="bjAction('stand')" id="btn-stand" class="btn-retro" disabled>STAND</button>
+                    <button onclick="bjAction('double')" id="btn-double" class="btn-retro" disabled>DOUBLE DOWN</button>
+                </div>
+
+                <!-- Bet Controls -->
+                <div class="flex items-center justify-center gap-4 flex-wrap">
+                    <label class="text-sm">BET:</label>
+                    <input type="number" id="bj-bet-input" value="50" min="10" step="10" class="w-24 px-2 py-1 bg-black text-cyan-300 border border-cyan-500">
+                    <button onclick="resetBlackjack()" class="btn-retro">DEAL</button>
+                </div>
+
+                <p class="text-center mt-4 text-sm" id="bj-result"></p>
+            </div>
+        </div>
+
+        <!-- ROULETTE PANEL -->
+        <div id="panel-roulette" class="game-panel" style="display: none;">
+            <div class="neon-box p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl orbitron text-white">ROULETTE</h2>
+                    <button onclick="showInfoModal('roulette')" class="btn-retro px-4 info-pulse">RULES</button>
+                </div>
+
+                <div class="mb-4 flex items-center gap-4 flex-wrap">
+                    <label class="text-sm">BET AMOUNT:</label>
+                    <input type="number" id="roulette-bet-amount" value="50" min="10" step="10" class="w-24 px-2 py-1 bg-black text-cyan-300 border border-cyan-500">
+                    <button onclick="clearRouletteBets()" class="btn-retro text-xs px-3">CLEAR BETS</button>
+                    <span class="text-sm ml-auto">TOTAL BET: <span class="text-yellow-400 font-bold" id="roulette-total-bet">$0</span></span>
+                </div>
+
+                <!-- Betting Grid -->
+                <div class="roulette-grid mb-6"></div>
+
+                <!-- Spin Button -->
+                <div class="text-center">
+                    <button onclick="spinRoulette()" id="btn-spin-roulette" class="btn-retro px-12 py-3 text-xl" disabled>SPIN</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- POKER PANEL -->
+        <div id="panel-poker" class="game-panel" style="display: none;">
+            <div class="neon-box p-6 table-felt">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl orbitron text-white">TEXAS HOLD'EM</h2>
+                    <button onclick="showInfoModal('poker')" class="btn-retro px-4 info-pulse">RULES</button>
+                </div>
+
+                <!-- Multiplayer Buttons (only appear when not in a game) -->
+                <div id="poker-setup" class="flex gap-4 justify-center mb-6">
+                    <button onclick="hostRoom('poker')" class="btn-retro">HOST POKER TABLE</button>
+                    <button onclick="joinRoom()" class="btn-retro">JOIN TABLE</button>
+                    <button onclick="startPoker()" class="btn-retro">SOLO GAME (AI)</button>
+                </div>
+
+                <!-- Poker Table Layout -->
+                <div class="relative flex flex-col items-center" style="min-height: 500px;">
+                    <!-- Player 1 (Top) -->
+                    <div id="p-slot-1" class="poker-player-slot absolute top-0 poker-player-area">
+                        <p class="text-[10px] opacity-60 mb-1">AI-1</p>
+                        <div class="flex gap-1 mb-1 justify-center" data-player="1"></div>
+                        <p class="text-xs">$<span data-balance="1">1000</span></p>
+                        <p class="text-[10px] opacity-50">BET: $<span data-bet="1">0</span></p>
+                    </div>
+
+                    <!-- Player 2 (Left) -->
+                    <div id="p-slot-2" class="poker-player-slot absolute left-0 top-1/2 -translate-y-1/2 poker-player-area">
+                        <p class="text-[10px] opacity-60 mb-1">AI-2</p>
+                        <div class="flex gap-1 mb-1 justify-center" data-player="2"></div>
+                        <p class="text-xs">$<span data-balance="2">1000</span></p>
+                        <p class="text-[10px] opacity-50">BET: $<span data-bet="2">0</span></p>
+                    </div>
+
+                    <!-- Player 3 (Right) -->
+                    <div id="p-slot-3" class="poker-player-slot absolute right-0 top-1/2 -translate-y-1/2 poker-player-area">
+                        <p class="text-[10px] opacity-60 mb-1">AI-3</p>
+                        <div class="flex gap-1 mb-1 justify-center" data-player="3"></div>
+                        <p class="text-xs">$<span data-balance="3">1000</span></p>
+                        <p class="text-[10px] opacity-50">BET: $<span data-bet="3">0</span></p>
+                    </div>
+
+                    <!-- Community Cards (Center) -->
+                    <div id="poker-community" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+                        <p class="text-xs opacity-60 mb-2">COMMUNITY CARDS</p>
+                        <div id="community-cards" class="flex gap-2 justify-center mb-2"></div>
+                        <p class="text-sm text-yellow-400 font-bold">POT: $<span id="poker-pot">0</span></p>
+                    </div>
+
+                    <!-- Player 0 (You - Bottom) -->
+                    <div id="p-slot-0" class="poker-player-slot absolute bottom-0 poker-player-area">
+                        <p class="text-[10px] opacity-60 mb-1">YOU</p>
+                        <div class="flex gap-1 mb-1 justify-center" data-player="0"></div>
+                        <p class="text-xs">$<span data-balance="0">1000</span></p>
+                        <p class="text-[10px] opacity-50">BET: $<span data-bet="0">0</span></p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 justify-center mt-6 flex-wrap" id="poker-actions">
+                    <button onclick="pokerAction('fold')" class="btn-retro" id="btn-fold" disabled>FOLD</button>
+                    <button onclick="pokerAction('call')" class="btn-retro" id="btn-call" disabled>CALL</button>
+                    <button onclick="pokerAction('raise')" class="btn-retro" id="btn-raise" disabled>RAISE $50</button>
+                </div>
+
+                <p class="text-center mt-4 text-sm" id="poker-result"></p>
+            </div>
+        </div>
+
+        <!-- CRAPS PANEL -->
+        <div id="panel-craps" class="game-panel" style="display: none;">
+            <div class="neon-box p-6 table-felt">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl orbitron text-white">CRAPS</h2>
+                    <button onclick="showInfoModal('craps')" class="btn-retro px-4 info-pulse">RULES</button>
+                </div>
+
+                <!-- Dice Display -->
+                <div class="flex justify-center gap-6 mb-6" id="craps-dice">
+                    <div class="w-16 h-16 bg-white text-black flex items-center justify-center text-3xl font-bold rounded-lg shadow-xl">1</div>
+                    <div class="w-16 h-16 bg-white text-black flex items-center justify-center text-3xl font-bold rounded-lg shadow-xl">1</div>
+                </div>
+
+                <!-- Point Display -->
+                <p class="text-center text-xl orbitron text-yellow-400 mb-4" id="craps-point-display">POINT: OFF</p>
+
+                <!-- Betting Area -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="neon-box p-3 text-center">
+                        <p class="text-xs opacity-60 mb-1">PASS LINE</p>
+                        <p class="text-sm mb-2">BET: <span class="text-yellow-400" id="bet-pass">$0</span></p>
+                        <input type="number" id="craps-bet-pass" value="50" min="10" step="10" class="w-20 px-2 py-1 bg-black text-cyan-300 border border-cyan-500 mb-2">
+                        <button onclick="placeCrapsBet('pass')" class="btn-retro text-xs w-full">PLACE BET</button>
+                    </div>
+                    <div class="neon-box p-3 text-center">
+                        <p class="text-xs opacity-60 mb-1">FIELD</p>
+                        <p class="text-sm mb-2">BET: <span class="text-yellow-400" id="bet-field">$0</span></p>
+                        <input type="number" id="craps-bet-field" value="50" min="10" step="10" class="w-20 px-2 py-1 bg-black text-cyan-300 border border-cyan-500 mb-2">
+                        <button onclick="placeCrapsBet('field')" class="btn-retro text-xs w-full">PLACE BET</button>
+                    </div>
+                </div>
+
+                <!-- Roll Button -->
+                <div class="text-center">
+                    <button onclick="rollDice()" class="btn-retro px-12 py-3 text-xl">ROLL DICE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLOTS PANEL -->
+        <div id="panel-slots" class="game-panel" style="display: none;">
+            <div class="neon-box p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl orbitron text-white">NEON SLOTS</h2>
+                    <button onclick="showInfoModal('slots')" class="btn-retro px-4 info-pulse">RULES</button>
+                </div>
+
+                <!-- Slot Reels -->
+                <div class="flex justify-center gap-4 mb-6">
+                    <div class="w-24 h-32 bg-black border-4 border-purple-600 flex items-center justify-center text-5xl rounded-lg" id="reel-1">🍒</div>
+                    <div class="w-24 h-32 bg-black border-4 border-purple-600 flex items-center justify-center text-5xl rounded-lg" id="reel-2">🍋</div>
+                    <div class="w-24 h-32 bg-black border-4 border-purple-600 flex items-center justify-center text-5xl rounded-lg" id="reel-3">💎</div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex items-center justify-center gap-4 flex-wrap mb-4">
+                    <label class="text-sm">BET:</label>
+                    <input type="number" id="slots-bet-input" value="50" min="10" step="10" class="w-24 px-2 py-1 bg-black text-cyan-300 border border-cyan-500">
+                    <button onclick="spinSlots()" class="btn-retro px-12">SPIN</button>
+                </div>
+
+                <p class="text-center text-sm" id="slots-result"></p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK v9+ (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase config - Replace with your own config
+        const firebaseConfig = {
+  apiKey: "AIzaSyC9nLHaL7Lc050imleIUeuq8EKD4Fi5qHU",
+  authDomain: "retro-royal-casino.firebaseapp.com",
+  projectId: "retro-royal-casino",
+  storageBucket: "retro-royal-casino.firebasestorage.app",
+  messagingSenderId: "441287288010",
+  appId: "1:441287288010:web:faa72345e09aa619138033",
+  measurementId: "G-3ZEK75NN35"
+};
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Make them globally accessible
+        window.db = db;
+        window.auth = auth;
+        window.firestore = { doc, setDoc, getDoc, updateDoc, onSnapshot };
+        window.currentUID = null;
+        window.playerData = null;
+
+        // Auto sign-in
+        signInAnonymously(auth).then(() => {
+            console.log("Signed in anonymously");
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                window.currentUID = user.uid;
+                document.getElementById('login-btn').disabled = false;
+                console.log("User authenticated:", user.uid);
+            }
+        });
+    </script>
+
+    <script>
+        /* ======================
+           CORE STATE & STORAGE
+        ====================== */
+        let state = {
+            balance: 1000,
+            stats: { biggestWin: 0, totalWagered: 0, gamesPlayed: 0 },
+            debt: false
+        };
+        let bj, roulette, poker, slots, craps;
+
+        function saveGame() {
+            localStorage.setItem('retroRoyale', JSON.stringify(state));
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem('retroRoyale');
+            if (saved) state = JSON.parse(saved);
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('hud-balance').innerText = '$' + state.balance;
+            document.getElementById('hud-bigwin').innerText = '$' + state.stats.biggestWin;
+            document.getElementById('hud-wagered').innerText = '$' + state.stats.totalWagered;
+            document.getElementById('hud-games').innerText = state.stats.gamesPlayed;
+            document.getElementById('debt-warning').style.display = state.debt ? 'block' : 'none';
+        }
+
+        function updateBalance(amount) {
+            state.balance += amount;
+            if (amount > 0 && amount > state.stats.biggestWin) state.stats.biggestWin = amount;
+            if (state.debt && state.balance >= 2500) {
+                state.debt = false;
+                alert('🎉 DEBT CLEARED! YOU BROKE THE BANK!');
+            }
+            updateHUD();
+            saveGame();
+        }
+
+        function deductBet(amount) {
+            if (state.balance < amount) return false;
+            state.balance -= amount;
+            state.stats.totalWagered += amount;
+            state.stats.gamesPlayed++;
+            updateHUD();
+            saveGame();
+            return true;
+        }
+
+        function checkBankruptcy() {
+            if (state.balance <= 0 && !state.debt) {
+                document.getElementById('bailout-modal').style.display = 'flex';
+            }
+        }
+
+        function acceptBailout() {
+            state.balance = 500;
+            state.debt = true;
+            document.getElementById('bailout-modal').style.display = 'none';
+            updateHUD();
+            saveGame();
+        }
+
+        function resetAll() {
+            if (!confirm('Reset all progress?')) return;
+            localStorage.clear();
+            location.reload();
+        }
+
+        /* ======================
+           GAME SWITCHING
+        ====================== */
+        function showGame(game) {
+            document.querySelectorAll('.game-panel').forEach(p => p.style.display = 'none');
+            document.getElementById(`panel-${game}`).style.display = 'block';
+        }
+
+        /* ======================
+           INFO MODALS
+        ====================== */
+        const gameRules = {
+            blackjack: `<ul class="rule-list">
+                <li><b>Goal:</b> Get a hand total closer to 21 than the dealer without going over.</li>
+                <li><b>Card Values:</b> Face cards = 10, Aces = 1 or 11.</li>
+                <li><b>Actions:</b> HIT (draw card), STAND (end turn), DOUBLE DOWN (double bet, get 1 card).</li>
+                <li><b>Dealer:</b> Must hit on 16 or less, stand on 17+.</li>
+                <li><b>Payout:</b> Win pays 2:1, Blackjack pays 3:2.</li>
+            </ul>`,
+            roulette: `<ul class="rule-list">
+                <li><b>Goal:</b> Predict where the ball will land on the spinning wheel.</li>
+                <li><b>Bets:</b> Click any number, color, or range on the grid to place bets.</li>
+                <li><b>Payouts:</b> Single number = 35:1, Red/Black = 2:1, Dozen/Column = 3:1.</li>
+                <li><b>Green (0):</b> House wins on 0 unless you bet on it directly.</li>
+            </ul>`,
+            poker: `<ul class="rule-list">
+                <li><b>Goal:</b> Make the best 5-card hand using your 2 cards + 5 community cards.</li>
+                <li><b>Rounds:</b> Pre-Flop, Flop (3 cards), Turn (1 card), River (1 card).</li>
+                <li><b>Actions:</b> FOLD (quit), CALL (match bet), RAISE (increase bet).</li>
+                <li><b>Multiplayer:</b> Host or join a table to play with friends!</li>
+                <li><b>Hand Rankings:</b> Royal Flush > Straight Flush > Four of a Kind > Full House > Flush > Straight > Three of a Kind > Two Pair > Pair > High Card.</li>
+            </ul>`,
+            craps: `<ul class="rule-list">
+                <li><b>Goal:</b> Bet on the outcome of two dice rolls.</li>
+                <li><b>Pass Line:</b> Win on 7 or 11 (come out), lose on 2, 3, 12. Otherwise, set a "point" and try to roll it again before a 7.</li>
+                <li><b>Field:</b> Win on 2, 3, 4, 9, 10, 11, 12 on any roll.</li>
+                <li><b>Payouts:</b> Pass Line = 2:1, Field = 2:1.</li>
+            </ul>`,
+            slots: `<ul class="rule-list">
+                <li><b>Goal:</b> Spin the reels and match 3 symbols to win.</li>
+                <li><b>Symbols:</b> 🍒 Cherry (2x), 🍋 Lemon (3x), ⭐ Star (5x), 💎 Diamond (10x), 7️⃣ Lucky 7 (25x).</li>
+                <li><b>Jackpot:</b> Three 7️⃣ symbols wins 25x your bet!</li>
+            </ul>`
+        };
+
+        function showInfoModal(game) {
+            document.getElementById('info-modal-content').innerHTML = gameRules[game];
+            document.getElementById('info-modal').style.display = 'flex';
+        }
+
+        function closeInfoModal() {
+            document.getElementById('info-modal').style.display = 'none';
+        }
+
+        /* ======================
+           BLACKJACK
+        ====================== */
+        function createDeck() {
+            const suits = ['♠','♥','♦','♣'];
+            const values = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+            let deck = [];
+            for (let s of suits) for (let v of values) deck.push(v + s);
+            return deck.sort(() => Math.random() - 0.5);
+        }
+
+        function cardValue(card) {
+            const val = card.slice(0, -1);
+            if (val === 'A') return 11;
+            if (['J','Q','K'].includes(val)) return 10;
+            return parseInt(val);
+        }
+
+        function handTotal(hand) {
+            let total = hand.reduce((sum, c) => sum + cardValue(c), 0);
+            let aces = hand.filter(c => c[0] === 'A').length;
+            while (total > 21 && aces > 0) { total -= 10; aces--; }
+            return total;
+        }
+
+        function renderCard(card, hidden = false) {
+            const div = document.createElement('div');
+            div.className = 'card';
+            if (hidden) {
+                div.classList.add('hidden-card');
+            } else {
+                if (card.includes('♥') || card.includes('♦')) div.classList.add('red');
+                div.innerHTML = `<div>${card.slice(0, -1)}</div><div style="font-size: 20px;">${card.slice(-1)}</div><div style="transform: rotate(180deg);">${card.slice(0, -1)}</div>`;
+            }
+            return div;
+        }
+
+        function resetBlackjack() {
+            const bet = parseInt(document.getElementById('bj-bet-input').value) || 50;
+            if (!deductBet(bet)) { checkBankruptcy(); return; }
+            bj = { deck: createDeck(), dealerHand: [], playerHand: [], bet, active: true };
+            bj.dealerHand.push(bj.deck.pop(), bj.deck.pop());
+            bj.playerHand.push(bj.deck.pop(), bj.deck.pop());
+            renderBlackjack();
+            document.getElementById('btn-hit').disabled = false;
+            document.getElementById('btn-stand').disabled = false;
+            document.getElementById('btn-double').disabled = false;
+            document.getElementById('bj-result').innerText = '';
+        }
+
+        function renderBlackjack() {
+            const dealerDiv = document.getElementById('dealer-hand');
+            const playerDiv = document.getElementById('player-hand');
+            dealerDiv.innerHTML = '';
+            playerDiv.innerHTML = '';
+            bj.dealerHand.forEach((c, i) => dealerDiv.appendChild(renderCard(c, i === 1 && bj.active)));
+            bj.playerHand.forEach(c => playerDiv.appendChild(renderCard(c)));
+            document.getElementById('dealer-score').innerText = bj.active ? 'SCORE: ?' : `SCORE: ${handTotal(bj.dealerHand)}`;
+            document.getElementById('player-score').innerText = `SCORE: ${handTotal(bj.playerHand)}`;
+        }
+
+        function bjAction(action) {
+            if (!bj || !bj.active) return;
+            if (action === 'hit') {
+                bj.playerHand.push(bj.deck.pop());
+                renderBlackjack();
+                if (handTotal(bj.playerHand) > 21) endBlackjack();
+            } else if (action === 'stand') {
+                endBlackjack();
+            } else if (action === 'double') {
+                if (!deductBet(bj.bet)) return;
+                bj.bet *= 2;
+                bj.playerHand.push(bj.deck.pop());
+                renderBlackjack();
+                endBlackjack();
+            }
+        }
+
+        function endBlackjack() {
+            bj.active = false;
+            while (handTotal(bj.dealerHand) < 17) bj.dealerHand.push(bj.deck.pop());
+            renderBlackjack();
+            const pTotal = handTotal(bj.playerHand);
+            const dTotal = handTotal(bj.dealerHand);
+            let result = '';
+            if (pTotal > 21) result = 'BUST! DEALER WINS';
+            else if (dTotal > 21) { result = 'DEALER BUST! YOU WIN'; updateBalance(bj.bet * 2); }
+            else if (pTotal > dTotal) { result = 'YOU WIN!'; updateBalance(bj.bet * 2); }
+            else if (pTotal < dTotal) result = 'DEALER WINS';
+            else { result = 'PUSH (TIE)'; updateBalance(bj.bet); }
+            document.getElementById('bj-result').innerText = result;
+            document.getElementById('btn-hit').disabled = true;
+            document.getElementById('btn-stand').disabled = true;
+            document.getElementById('btn-double').disabled = true;
+            checkBankruptcy();
+        }
+
+        /* ======================
+           ROULETTE
+        ====================== */
+        const rouletteLayout = [
+            {num: 0, color: 'green'},
+            {num: 1, color: 'red'}, {num: 2, color: 'black'}, {num: 3, color: 'red'},
+            {num: 4, color: 'black'}, {num: 5, color: 'red'}, {num: 6, color: 'black'},
+            {num: 7, color: 'red'}, {num: 8, color: 'black'}, {num: 9, color: 'red'},
+            {num: 10, color: 'black'}, {num: 11, color: 'black'}, {num: 12, color: 'red'},
+            {num: 13, color: 'black'}, {num: 14, color: 'red'}, {num: 15, color: 'black'},
+            {num: 16, color: 'red'}, {num: 17, color: 'black'}, {num: 18, color: 'red'},
+            {num: 19, color: 'red'}, {num: 20, color: 'black'}, {num: 21, color: 'red'},
+            {num: 22, color: 'black'}, {num: 23, color: 'red'}, {num: 24, color: 'black'},
+            {num: 25, color: 'red'}, {num: 26, color: 'black'}, {num: 27, color: 'red'},
+            {num: 28, color: 'black'}, {num: 29, color: 'black'}, {num: 30, color: 'red'},
+            {num: 31, color: 'black'}, {num: 32, color: 'red'}, {num: 33, color: 'black'},
+            {num: 34, color: 'red'}, {num: 35, color: 'black'}, {num: 36, color: 'red'}
+        ];
+
+        function initRoulette() {
+            roulette = { bets: {}, totalBet: 0 };
+            const grid = document.querySelector('.roulette-grid');
+            grid.innerHTML = '';
+            // Numbers 0-36
+            rouletteLayout.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = `r-cell r-${item.color}`;
+                cell.innerText = item.num;
+                cell.onclick = () => placeRouletteBet('number', item.num);
+                grid.appendChild(cell);
+            });
+            // Outside bets
+            const outsideBets = [
+                {label: 'RED', type: 'red'}, {label: 'BLACK', type: 'black'},
+                {label: '1-18', type: 'low'}, {label: '19-36', type: 'high'},
+                {label: 'EVEN', type: 'even'}, {label: 'ODD', type: 'odd'},
+                {label: '1st 12', type: 'dozen1'}, {label: '2nd 12', type: 'dozen2'}, {label: '3rd 12', type: 'dozen3'}
+            ];
+            outsideBets.forEach(b => {
+                const cell = document.createElement('div');
+                cell.className = 'r-cell r-black';
+                cell.style.fontSize = '8px';
+                cell.style.gridColumn = 'span 2';
+                cell.innerText = b.label;
+                cell.onclick = () => placeRouletteBet(b.type);
+                grid.appendChild(cell);
+            });
+        }
+
+        function placeRouletteBet(type, num = null) {
+            const betAmt = parseInt(document.getElementById('roulette-bet-amount').value) || 50;
+            const key = type === 'number' ? `num-${num}` : type;
+            roulette.bets[key] = (roulette.bets[key] || 0) + betAmt;
+            roulette.totalBet += betAmt;
+            document.getElementById('roulette-total-bet').innerText = '$' + roulette.totalBet;
+            document.getElementById('btn-spin-roulette').disabled = false;
+        }
+
+        function clearRouletteBets() {
+            roulette.bets = {};
+            roulette.totalBet = 0;
+            document.getElementById('roulette-total-bet').innerText = '$0';
+            document.getElementById('btn-spin-roulette').disabled = true;
+        }
+
+        function spinRoulette() {
+            if (!deductBet(roulette.totalBet)) { checkBankruptcy(); return; }
+            const result = rouletteLayout[Math.floor(Math.random() * rouletteLayout.length)];
+            showRouletteWheel(result);
+            setTimeout(() => {
+                let winnings = 0;
+                Object.keys(roulette.bets).forEach(key => {
+                    const bet = roulette.bets[key];
+                    if (key === `num-${result.num}`) winnings += bet * 36;
+                    else if (key === result.color && result.num !== 0) winnings += bet * 2;
+                    else if (key === 'low' && result.num >= 1 && result.num <= 18) winnings += bet * 2;
+                    else if (key === 'high' && result.num >= 19 && result.num <= 36) winnings += bet * 2;
+                    else if (key === 'even' && result.num % 2 === 0 && result.num !== 0) winnings += bet * 2;
+                    else if (key === 'odd' && result.num % 2 === 1) winnings += bet * 2;
+                    else if (key === 'dozen1' && result.num >= 1 && result.num <= 12) winnings += bet * 3;
+                    else if (key === 'dozen2' && result.num >= 13 && result.num <= 24) winnings += bet * 3;
+                    else if (key === 'dozen3' && result.num >= 25 && result.num <= 36) winnings += bet * 3;
+                });
+                if (winnings > 0) {
+                    updateBalance(winnings);
+                    alert(`YOU WON $${winnings}!`);
+                }
+                clearRouletteBets();
+                checkBankruptcy();
+            }, 5000);
+        }
+
+        function showRouletteWheel(result) {
+            const modal = document.getElementById('roulette-spin-modal');
+            const wheel = document.getElementById('roulette-wheel');
+            const resultText = document.getElementById('roulette-result-text');
+            wheel.innerHTML = '<div class="wheel-center"></div>';
+            rouletteLayout.forEach((item, i) => {
+                const angle = (360 / rouletteLayout.length) * i;
+                const numDiv = document.createElement('div');
+                numDiv.className = 'wheel-number-item';
+                numDiv.style.transform = `rotate(${angle}deg)`;
+                numDiv.innerHTML = `<div style="background: ${item.color === 'green' ? '#0a0' : item.color === 'red' ? '#d00' : '#111'}; color: white; padding: 2px 6px; border-radius: 4px;">${item.num}</div>`;
+                wheel.appendChild(numDiv);
+            });
+            modal.style.display = 'flex';
+            const spinAmount = 1440 + (360 / rouletteLayout.length) * rouletteLayout.findIndex(x => x.num === result.num);
+            wheel.style.transform = `rotate(${spinAmount}deg)`;
+            resultText.innerText = `SPINNING...`;
+            setTimeout(() => {
+                resultText.innerText = `RESULT: ${result.num} (${result.color.toUpperCase()})`;
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    wheel.style.transform = 'rotate(0deg)';
+                }, 2000);
+            }, 4000);
+        }
+
+        /* ======================
+           POKER (TEXAS HOLD'EM)
+        ====================== */
+        function startPoker() {
+            if (gameMode === "multi" && !isHost) return;
+            
+            // Hide setup buttons
+            document.getElementById('poker-setup').style.display = 'none';
+            
+            poker = {
+                deck: createDeck(),
+                players: [
+                    { id: 'player', name: 'You', balance: state.balance, seat: 0, cards: [], status: 'active', isAI: false },
+                    { id: 'ai1', name: 'AI-1', balance: 1000, seat: 1, cards: [], status: 'active', isAI: true },
+                    { id: 'ai2', name: 'AI-2', balance: 1000, seat: 2, cards: [], status: 'active', isAI: true },
+                    { id: 'ai3', name: 'AI-3', balance: 1000, seat: 3, cards: [], status: 'active', isAI: true }
+                ],
+                community: [],
+                pot: 0,
+                currentBet: 50,
+                turn: 0,
+                phase: 'preflop',
+                active: true
+            };
+            poker.players.forEach(p => {
+                p.cards = [poker.deck.pop(), poker.deck.pop()];
+                p.balance -= 50;
+                poker.pot += 50;
+            });
+            renderPoker();
+            
+            if (gameMode === "multi") {
+                syncRoom();
+            }
+        }
+
+        function renderPoker() {
+            if (!poker) return;
+            document.getElementById('poker-pot').innerText = poker.pot;
+            const communityDiv = document.getElementById('community-cards');
+            communityDiv.innerHTML = '';
+            poker.community.forEach(c => communityDiv.appendChild(renderCard(c)));
+            poker.players.forEach((p, i) => {
+                const cardDiv = document.querySelector(`[data-player="${i}"]`);
+                const balanceSpan = document.querySelector(`[data-balance="${i}"]`);
+                const betSpan = document.querySelector(`[data-bet="${i}"]`);
+                cardDiv.innerHTML = '';
+                if (i === 0) p.cards.forEach(c => cardDiv.appendChild(renderCard(c)));
+                else p.cards.forEach(() => cardDiv.appendChild(renderCard('', true)));
+                if (balanceSpan) balanceSpan.innerText = p.balance;
+                if (betSpan) betSpan.innerText = poker.currentBet || 0;
+                const slot = document.getElementById(`p-slot-${i}`);
+                if (slot) {
+                    slot.classList.toggle('active-turn', poker.turn === i && poker.active);
+                }
+            });
+            const canAct = poker.active && poker.turn === 0;
+            document.getElementById('btn-fold').disabled = !canAct;
+            document.getElementById('btn-call').disabled = !canAct;
+            document.getElementById('btn-raise').disabled = !canAct;
+        }
+
+        function pokerAction(type) {
+            if (!poker || !poker.active) return;
+            
+            // Original function reference (will be wrapped for multiplayer)
+            _pokerActionCore(type);
+        }
+
+        function _pokerActionCore(type) {
+            const player = poker.players[poker.turn];
+            if (type === 'fold') {
+                player.status = 'folded';
+            } else if (type === 'call') {
+                const callAmt = Math.min(poker.currentBet, player.balance);
+                player.balance -= callAmt;
+                poker.pot += callAmt;
+            } else if (type === 'raise') {
+                const raiseAmt = Math.min(poker.currentBet + 50, player.balance);
+                player.balance -= raiseAmt;
+                poker.pot += raiseAmt;
+                poker.currentBet += 50;
+            }
+            
+            if (poker.turn === 0) state.balance = player.balance;
+            poker.turn = (poker.turn + 1) % poker.players.length;
+            while (poker.players[poker.turn].status === 'folded') {
+                poker.turn = (poker.turn + 1) % poker.players.length;
+            }
+            
+            if (poker.turn === 0 && poker.active) advancePokerPhase();
+            
+            renderPoker();
+            
+            if (poker.active && poker.players[poker.turn].isAI) {
+                setTimeout(() => {
+                    const aiAction = Math.random() < 0.3 ? 'fold' : Math.random() < 0.5 ? 'call' : 'raise';
+                    pokerAction(aiAction);
+                }, 1000);
+            }
+        }
+
+        function advancePokerPhase() {
+            if (poker.phase === 'preflop') {
+                poker.community = [poker.deck.pop(), poker.deck.pop(), poker.deck.pop()];
+                poker.phase = 'flop';
+            } else if (poker.phase === 'flop') {
+                poker.community.push(poker.deck.pop());
+                poker.phase = 'turn';
+            } else if (poker.phase === 'turn') {
+                poker.community.push(poker.deck.pop());
+                poker.phase = 'river';
+            } else {
+                endPoker();
+            }
+        }
+
+        function endPoker() {
+            poker.active = false;
+            const activePlayers = poker.players.filter(p => p.status !== 'folded');
+            if (activePlayers.length === 1) {
+                activePlayers[0].balance += poker.pot;
+                if (activePlayers[0].id === 'player') state.balance += poker.pot;
+            } else {
+                const winner = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+                winner.balance += poker.pot;
+                if (winner.id === 'player') state.balance += poker.pot;
+            }
+            document.getElementById('poker-result').innerText = 'Round over! Click any action to continue.';
+            updateHUD();
+            saveGame();
+            checkBankruptcy();
+            
+            // Show setup buttons again
+            document.getElementById('poker-setup').style.display = 'flex';
+        }
+
+        /* ======================
+           CRAPS
+        ====================== */
+        craps = { bets: { pass: 0, field: 0 }, point: 0 };
+
+        function placeCrapsBet(type) {
+            const amt = parseInt(document.getElementById(`craps-bet-${type}`).value) || 50;
+            if (!deductBet(amt)) { checkBankruptcy(); return; }
+            craps.bets[type] = (craps.bets[type] || 0) + amt;
+            document.getElementById(`bet-${type}`).innerText = '$' + craps.bets[type];
+        }
+
+        function rollDice() {
+            const d1 = Math.ceil(Math.random() * 6);
+            const d2 = Math.ceil(Math.random() * 6);
+            const total = d1 + d2; const dice = document.getElementById('craps-dice').children;
+            dice[0].innerText = d1; dice[1].innerText = d2;
+            let winAmt = 0;
+            if (craps.point === 0) {
+                if (total === 7 || total === 11) winAmt += (craps.bets.pass || 0) * 2;
+                else if (total === 2 || total === 3 || total === 12) craps.bets.pass = 0;
+                else craps.point = total;
+            } else {
+                if (total === craps.point) { winAmt += (craps.bets.pass || 0) * 2; craps.point = 0; }
+                else if (total === 7) { craps.point = 0; craps.bets.pass = 0; }
+            }
+            if ([2,3,4,9,10,11,12].includes(total)) winAmt += (craps.bets.field || 0) * 2;
+            craps.bets.field = 0; document.getElementById('bet-field').innerText = '$0';
+            document.getElementById('bet-pass').innerText = `$${craps.bets.pass || 0}`;
+            document.getElementById('craps-point-display').innerText = `POINT: ${craps.point || 'OFF'}`;
+            if (winAmt > 0) updateBalance(winAmt);
+            checkBankruptcy();
+        }
+
+        /* ======================
+           SLOTS
+        ====================== */
+        const slotSymbols = ['🍒', '🍋', '⭐', '💎', '7️⃣'];
+        const slotPayouts = { '🍒': 2, '🍋': 3, '⭐': 5, '💎': 10, '7️⃣': 25 };
+
+        function spinSlots() {
+            const bet = parseInt(document.getElementById('slots-bet-input').value) || 50;
+            if (!deductBet(bet)) { checkBankruptcy(); return; }
+            const reels = [
+                slotSymbols[Math.floor(Math.random() * slotSymbols.length)],
+                slotSymbols[Math.floor(Math.random() * slotSymbols.length)],
+                slotSymbols[Math.floor(Math.random() * slotSymbols.length)]
+            ];
+            document.getElementById('reel-1').innerText = reels[0];
+            document.getElementById('reel-2').innerText = reels[1];
+            document.getElementById('reel-3').innerText = reels[2];
+            if (reels[0] === reels[1] && reels[1] === reels[2]) {
+                const payout = bet * slotPayouts[reels[0]];
+                updateBalance(payout);
+                document.getElementById('slots-result').innerText = `🎉 JACKPOT! YOU WON $${payout}!`;
+            } else {
+                document.getElementById('slots-result').innerText = 'Try again!';
+            }
+            checkBankruptcy();
+        }
+
+        window.onload = function() { 
+            loadGame(); 
+            resetBlackjack(); 
+            initRoulette();
+        };
+    </script>
+
+    <!-- MULTIPLAYER SYSTEM -->
+    <script>
+        /* ======================
+           PLAYER LOGIN
+        ====================== */
+        async function loginPlayer() {
+            if (!window.currentUID) return alert("Still connecting to server...");
+
+            const name = document.getElementById("player-name").value.trim();
+            if (!name) return alert("Enter a name");
+
+            const { doc, setDoc } = window.firestore;
+            const ref = doc(window.db, "players", window.currentUID);
+            const data = { name, balance: state.balance || 1000 };
+            
+            await setDoc(ref, data, { merge: true });
+            window.playerData = data;
+            document.getElementById("login-screen").style.display = "none";
+        }
+
+        /* ======================
+           MULTIPLAYER CORE
+        ====================== */
+        let gameMode = "single";
+        let roomId = null;
+        let isHost = false;
+
+        async function hostRoom(game) {
+            if (!window.currentUID || !window.playerData) {
+                return alert("Please log in first!");
+            }
+            
+            gameMode = "multi";
+            isHost = true;
+            roomId = crypto.randomUUID().slice(0,6);
+
+            const { doc, setDoc } = window.firestore;
+            await setDoc(doc(window.db, "rooms", roomId), {
+                game,
+                host: window.currentUID,
+                players: { [window.currentUID]: window.playerData },
+                gameState: null
+            });
+
+            listenRoom();
+            alert("ROOM CODE: " + roomId + "\n\nShare this code with friends!");
+        }
+
+        async function joinRoom() {
+            if (!window.currentUID || !window.playerData) {
+                return alert("Please log in first!");
+            }
+            
+            const code = prompt("Enter Room Code");
+            if (!code) return;
+
+            roomId = code;
+            gameMode = "multi";
+            isHost = false;
+
+            const { doc, getDoc, updateDoc } = window.firestore;
+            const roomRef = doc(window.db, "rooms", roomId);
+            const snap = await getDoc(roomRef);
+
+            if (!snap.exists()) return alert("Room not found");
+
+            const data = snap.data();
+            await updateDoc(roomRef, { [`players.${window.currentUID}`]: window.playerData });
+
+            listenRoom();
+        }
+
+        function replaceAIWithMultiplayerPlayers(roomData) {
+            if (!poker) return;
+
+            const realPlayers = Object.entries(roomData.players).map(([uid, p], index) => ({
+                id: uid,
+                name: p.name,
+                balance: p.balance,
+                seat: index,
+                isAI: false,
+                cards: poker.players[index]?.cards || [],
+                status: poker.players[index]?.status || 'active'
+            }));
+
+            poker.players = realPlayers;
+
+            for (let i = 0; i < 4; i++) {
+                const slot = document.getElementById(`p-slot-${i}`);
+                const nameLabel = slot?.querySelector('.text-\\[10px\\]');
+                
+                if (i < realPlayers.length) {
+                    if (slot) slot.style.display = 'block';
+                    if (nameLabel) nameLabel.innerText = realPlayers[i].name;
+                } else {
+                    if (slot) slot.style.display = 'none';
+                }
+            }
+        }
+
+        function listenRoom() {
+            const { doc, onSnapshot } = window.firestore;
+            onSnapshot(doc(window.db, "rooms", roomId), snap => {
+                if (!snap.exists()) return;
+                const data = snap.data();
+
+                replaceAIWithMultiplayerPlayers(data);
+
+                if (isHost) {
+                    syncRoom();
+                } else if (data.gameState) {
+                    poker = data.gameState.poker;
+                    state = data.gameState.state;
+                    
+                    const setupBtn = document.getElementById('poker-setup');
+                    if (setupBtn) {
+                        if (!poker.active) {
+                            setupBtn.innerHTML = '<div class="text-cyan-400 orbitron animate-pulse">WAITING FOR HOST TO START...</div>';
+                        } else {
+                            setupBtn.innerHTML = '';
+                        }
+                    }
+                }
+                
+                renderPoker();
+            });
+        }
+
+        function syncRoom() {
+            if (gameMode !== "multi" || !isHost) return;
+            const { doc, updateDoc } = window.firestore;
+            updateDoc(doc(window.db, "rooms", roomId), {
+                gameState: { 
+                    state: state, 
+                    poker: poker
+                }
+            });
+        }
+
+        // Wrap poker action for multiplayer
+        const _pokerActionCore_original = _pokerActionCore;
+        pokerAction = async function(type) {
+            if (!poker) return;
+
+            if (gameMode === "multi") {
+                const myIndex = poker.players.findIndex(p => p.id === window.currentUID);
+                const actingIndex = (myIndex === -1 && isHost) ? 0 : myIndex;
+
+                if (poker.turn !== actingIndex) return;
+
+                _pokerActionCore(type);
+
+                let nextTurn = (poker.turn + 1) % poker.players.length;
+                let attempts = 0;
+                while (poker.players[nextTurn] && poker.players[nextTurn].status === 'folded' && attempts < 4) {
+                    nextTurn = (nextTurn + 1) % poker.players.length;
+                    attempts++;
+                }
+                poker.turn = nextTurn;
+
+                if (poker.turn === 0 && isHost && poker.active) {
+                    advancePokerPhase();
+                }
+
+                const { doc, updateDoc } = window.firestore;
+                await updateDoc(doc(window.db, "rooms", roomId), {
+                    gameState: { state, poker }
+                });
+            } else {
+                _pokerActionCore(type);
+            }
+        };
+    </script>
+
+</body>
+</html>
