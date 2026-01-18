@@ -1,0 +1,3390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Royal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+    .animate-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .animate-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      from { transform: translateY(-50%) rotate(0deg); }
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
+  </style>
+  <script type="module">
+    /* eslint-disable */
+    /* global */
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { 
+      getFirestore, 
+      doc, 
+      setDoc, 
+      onSnapshot, 
+      updateDoc,
+      getDoc,
+      collection,
+      query,
+      where,
+      getDocs,
+      deleteDoc,
+      serverTimestamp,
+      orderBy,
+      limit
+    } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { 
+      getAuth, 
+      signInWithEmailAndPassword, 
+      createUserWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut,
+      updateProfile,
+      deleteUser,
+      GoogleAuthProvider,
+      signInWithPopup,
+      sendPasswordResetEmail
+    } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC9nLHaL7Lc050imleIUeuq8EKD4Fi5qHU",
+      authDomain: "retro-royal-casino.firebaseapp.com",
+      projectId: "retro-royal-casino",
+      storageBucket: "retro-royal-casino.firebasestorage.app",
+      messagingSenderId: "441287288010",
+      appId: "1:441287288010:web:faa72345e09aa619138033",
+      measurementId: "G-3ZEK75NN35"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = 'strategy-poker-hub';
+
+    const GAME_TYPES = { STRATEGY: 'STRATEGY', POKER: 'POKER' };
+    const SUITS = ['♠', '♥', '♦', '♣'];
+    const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+    // Game State
+    let currentUser = null;
+    let currentPage = 'auth';
+    let gameData = null;
+    let unsubscribe = null;
+    let isMultiplayer = false;
+    let gameId = '';
+    let selectedStrategyNode = null;
+    let betAmount = 50;
+    let ffActive = false;
+    let resolutionStarted = false;
+    let currentLobbyId = null;
+    let lobbyUnsubscribe = null;
+    let availableLobbies = [];
+    let aiPlayerCount = 3;
+    let userStats = {
+      pokerWins: 0,
+      strategyWins: 0,
+      totalWins: 0,
+      nodesSecured: 0,
+      gamesPlayed: 0,
+      totalChips: 2000,
+      avatar: '👤'
+    };
+    
+    // Available avatars
+    const AVATARS = [
+      '👤', '🤖', '👨‍💻', '👩‍💻', '🧑‍🚀', '👨‍🚀', '👩‍🚀',
+      '🦾', '🎮', '🎯', '⚡', '🔥', '💎', '👑',
+      '🎲', '🃏', '🎰', '🏆', '⭐', '💫', '🌟',
+      '🦅', '🦁', '🐺', '🦈', '🐉', '🦖', '🦂'
+    ];
+
+    // Utility Functions
+    const generateDeck = () => {
+      const deck = [];
+      for (const suit of SUITS) {
+        for (const rank of RANKS) {
+          deck.push({ suit, rank });
+        }
+      }
+      return deck.sort(() => Math.random() - 0.5);
+    };
+
+    const getRankValue = (rank) => RANKS.indexOf(rank);
+
+    const evaluateHand = (playerCards, communityCards) => {
+      const allCards = [...playerCards, ...communityCards];
+      if (allCards.length < 2) return 0;
+      const ranks = allCards.map(c => getRankValue(c.rank));
+      const suits = allCards.map(c => c.suit);
+      
+      const rankCounts = {};
+      ranks.forEach(r => rankCounts[r] = (rankCounts[r] || 0) + 1);
+      const counts = Object.values(rankCounts).sort((a, b) => b - a);
+      
+      const isFlush = suits.some(s => suits.filter(x => x === s).length >= 5);
+      const sortedRanks = [...new Set(ranks)].sort((a, b) => b - a);
+      let isStraight = false;
+      for (let i = 0; i <= sortedRanks.length - 5; i++) {
+        if (sortedRanks[i] - sortedRanks[i + 4] === 4) {
+          isStraight = true;
+          break;
+        }
+      }
+      
+      if (!isStraight && sortedRanks.includes(12) && sortedRanks.includes(0) && 
+          sortedRanks.includes(1) && sortedRanks.includes(2) && sortedRanks.includes(3)) {
+        isStraight = true;
+      }
+      
+      if (isStraight && isFlush) return 8000 + Math.max(...ranks);
+      if (counts[0] === 4) return 7000 + Math.max(...ranks);
+      if (counts[0] === 3 && counts[1] === 2) return 6000 + Math.max(...ranks);
+      if (isFlush) return 5000 + Math.max(...ranks);
+      if (isStraight) return 4000 + Math.max(...ranks);
+      if (counts[0] === 3) return 3000 + Math.max(...ranks);
+      if (counts[0] === 2 && counts[1] === 2) return 2000 + Math.max(...ranks);
+      if (counts[0] === 2) return 1000 + Math.max(...ranks);
+      return Math.max(...ranks);
+    };
+
+    const evaluateHandName = (playerCards, communityCards) => {
+      const allCards = [...playerCards, ...communityCards];
+      if (allCards.length < 2) return null;
+      const ranks = allCards.map(c => getRankValue(c.rank));
+      const suits = allCards.map(c => c.suit);
+      
+      const rankCounts = {};
+      ranks.forEach(r => rankCounts[r] = (rankCounts[r] || 0) + 1);
+      const counts = Object.values(rankCounts).sort((a, b) => b - a);
+      
+      const isFlush = suits.some(s => suits.filter(x => x === s).length >= 5);
+      const sortedRanks = [...new Set(ranks)].sort((a, b) => b - a);
+      let isStraight = false;
+      for (let i = 0; i <= sortedRanks.length - 5; i++) {
+        if (sortedRanks[i] - sortedRanks[i + 4] === 4) {
+          isStraight = true;
+          break;
+        }
+      }
+      
+      if (!isStraight && sortedRanks.includes(12) && sortedRanks.includes(0) && 
+          sortedRanks.includes(1) && sortedRanks.includes(2) && sortedRanks.includes(3)) {
+        isStraight = true;
+      }
+      
+      if (isStraight && isFlush) return 'Straight Flush';
+      if (counts[0] === 4) return 'Four of a Kind';
+      if (counts[0] === 3 && counts[1] === 2) return 'Full House';
+      if (isFlush) return 'Flush';
+      if (isStraight) return 'Straight';
+      if (counts[0] === 3) return 'Three of a Kind';
+      if (counts[0] === 2 && counts[1] === 2) return 'Two Pair';
+      if (counts[0] === 2) return 'One Pair';
+      
+      const highCard = RANKS[Math.max(...ranks)];
+      return `High Card (${highCard})`;
+    };
+
+    // User Stats Functions
+    const loadUserStats = async (userId) => {
+      try {
+        const statsDoc = await getDoc(doc(db, 'users', userId, 'stats', 'gameplay'));
+        if (statsDoc.exists()) {
+          userStats = { avatar: '👤', ...statsDoc.data() }; // Ensure avatar has default
+        } else {
+          // Initialize stats if they don't exist
+          userStats = {
+            pokerWins: 0,
+            strategyWins: 0,
+            totalWins: 0,
+            nodesSecured: 0,
+            gamesPlayed: 0,
+            totalChips: 2000,
+            avatar: '👤'
+          };
+          await saveUserStats(userId);
+        }
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    };
+
+    const saveUserStats = async (userId) => {
+      try {
+        await setDoc(doc(db, 'users', userId, 'stats', 'gameplay'), userStats);
+      } catch (error) {
+        console.error('Error saving stats:', error);
+      }
+    };
+
+    const updateStats = async (updates) => {
+      if (!currentUser) return;
+      userStats = { ...userStats, ...updates };
+      await saveUserStats(currentUser.uid);
+      if (currentPage === 'profile') {
+        render();
+      }
+    };
+
+    const getRank = (wins) => {
+      if (wins >= 100) return 'Legend';
+      if (wins >= 50) return 'Master';
+      if (wins >= 25) return 'Veteran';
+      if (wins >= 10) return 'Vanguard';
+      if (wins >= 5) return 'Specialist';
+      return 'Recruit';
+    };
+
+    const getRankInfo = (wins) => {
+      const ranks = [
+        { name: 'Recruit', minWins: 0, maxWins: 4, color: '#64748b', icon: '🔰', description: 'New operator entering the neural network', bonus: 'Welcome Package: 2000 Credits' },
+        { name: 'Specialist', minWins: 5, maxWins: 9, color: '#3b82f6', icon: '⚡', description: 'Proven tactical capability in field operations', bonus: '+10% starting energy in Strategy' },
+        { name: 'Vanguard', minWins: 10, maxWins: 24, color: '#8b5cf6', icon: '🎯', description: 'Elite operative with command authority', bonus: '+200 starting chips in Poker' },
+        { name: 'Veteran', minWins: 25, maxWins: 49, color: '#ec4899', icon: '💎', description: 'Seasoned warrior of countless victories', bonus: '+2 starting nodes in Strategy' },
+        { name: 'Master', minWins: 50, maxWins: 99, color: '#f59e0b', icon: '👑', description: 'Master strategist dominating the battlefield', bonus: '+500 starting chips & +15% energy' },
+        { name: 'Legend', minWins: 100, maxWins: 999999, color: '#eab308', icon: '⭐', description: 'Legendary status - the pinnacle of achievement', bonus: 'All bonuses + Special cosmetics' }
+      ];
+      
+      return ranks.find(r => wins >= r.minWins && wins <= r.maxWins) || ranks[0];
+    };
+
+    const getNextRank = (wins) => {
+      const ranks = [
+        { name: 'Specialist', wins: 5 },
+        { name: 'Vanguard', wins: 10 },
+        { name: 'Veteran', wins: 25 },
+        { name: 'Master', wins: 50 },
+        { name: 'Legend', wins: 100 }
+      ];
+      
+      return ranks.find(r => wins < r.wins) || null;
+    };
+
+    const getRankProgress = (wins) => {
+      const current = getRankInfo(wins);
+      if (current.name === 'Legend') return 100;
+      const next = getNextRank(wins);
+      if (!next) return 100;
+      const progress = ((wins - current.minWins) / (next.wins - current.minWins)) * 100;
+      return Math.min(Math.max(progress, 0), 100);
+    };
+
+    // Icon Components (simple SVG replacements)
+    const icons = {
+      trophy: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
+      dice: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><path d="M16 8h.01"></path><path d="M8 8h.01"></path><path d="M8 16h.01"></path><path d="M16 16h.01"></path><path d="M12 12h.01"></path></svg>',
+      refresh: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>',
+      logout: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>',
+      user: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+      shield: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path></svg>',
+      settings: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m0-12a3 3 0 0 1 3 3m-3 3a3 3 0 0 1-3-3m12-3h-6m-6 0H1m12 12h-6m-6 0H1"></path></svg>',
+      trash: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>',
+      arrowLeft: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>',
+      coins: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>',
+      globe: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>',
+      cpu: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="16" height="16" x="4" y="4" rx="2"></rect><rect width="6" height="6" x="9" y="9" rx="1"></rect><path d="M15 2v2"></path><path d="M15 20v2"></path><path d="M2 15h2"></path><path d="M2 9h2"></path><path d="M20 15h2"></path><path d="M20 9h2"></path><path d="M9 2v2"></path><path d="M9 20v2"></path></svg>',
+      zap: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"></path></svg>',
+      activity: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>',
+      target: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>',
+      radio: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"></circle><path d="M4.93 4.93a10 10 0 0 1 14.14 0"></path><path d="M8.46 8.46a5 5 0 0 1 7.08 0"></path></svg>',
+      alertTriangle: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>',
+      camera: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>',
+      save: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>',
+      info: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>',
+      sword: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"></path><path d="M13 19 9 15"></path><path d="m16 16 5 5"></path><path d="m19 13 2 2"></path></svg>',
+      shieldIcon: '<svg class="inline-block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>'
+    };
+
+    // Render Functions
+    function render() {
+      const root = document.getElementById('root');
+      
+      // Additional safety check - if user exists but has no email, force auth page
+      if (currentUser && !currentUser.email) {
+        console.log('User without email detected in render - showing auth page');
+        currentPage = 'auth';
+        currentUser = null;
+      }
+      
+      if (!currentUser) {
+        root.innerHTML = renderAuthPage();
+        attachAuthListeners();
+      } else {
+        // Handle different pages
+        if (currentPage === 'poker-setup') {
+          root.innerHTML = renderPokerSetup();
+          attachPokerSetupListeners();
+          return;
+        }
+        if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby') {
+          root.innerHTML = renderMainLayout();
+          attachLobbyListeners();
+        } else if (currentPage === 'waiting-room') {
+          root.innerHTML = renderMainLayout();
+          attachWaitingRoomListeners();
+        } else {
+          root.innerHTML = renderMainLayout();
+          if (currentPage === 'profile') {
+            attachProfileListeners();
+          } else if (currentPage === 'menu') {
+            attachHomeListeners();
+          } else if (currentPage === 'game') {
+            if (gameData?.type === GAME_TYPES.STRATEGY) {
+              attachStrategyListeners();
+            } else if (gameData?.type === GAME_TYPES.POKER) {
+              attachPokerListeners();
+            }
+          }
+        }
+      }
+    }
+
+    function renderMainLayout() {
+      return `
+        <div class="min-h-screen bg-[#0a0a0c] text-slate-100 font-sans selection:bg-blue-500/30">
+          <nav class="border-b border-white/5 p-3 flex justify-between items-center bg-black/40 backdrop-blur-xl sticky top-0 z-50">
+            <div class="flex items-center gap-3 cursor-pointer group" id="home-btn">
+              <div class="bg-blue-600 p-2 rounded-xl text-white group-hover:rotate-12 transition-transform">${icons.trophy}</div>
+              <h1 class="text-lg font-black uppercase italic tracking-tighter text-white">Retro Royal</h1>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="profile-btn" class="flex items-center gap-2 p-1.5 pr-3 rounded-xl transition-all border border-white/5 ${currentPage === 'profile' ? 'bg-blue-600 border-blue-500' : 'bg-white/5 hover:bg-white/10'}">
+                <div class="w-7 h-7 bg-blue-600/20 rounded-lg flex items-center justify-center text-sm">
+                  ${userStats.avatar || '👤'}
+                </div>
+                <span class="text-xs font-bold text-slate-300 hidden sm:inline uppercase">${currentUser.displayName || 'Operator'}</span>
+              </button>
+              <button id="signout-btn" class="p-2 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 flex items-center gap-2"><span>🚪</span><span>Logout</span></button>
+            </div>
+          </nav>
+          <main class="max-w-7xl mx-auto p-3 md:p-4">
+            ${currentPage === 'profile' ? renderProfilePage() : ''}
+            ${currentPage === 'menu' ? renderHomePage() : ''}
+            ${currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' ? renderLobbyPage() : ''}
+            ${currentPage === 'waiting-room' ? renderWaitingRoom() : ''}
+            ${currentPage === 'game' && gameData ? renderGamePage() : ''}
+          </main>
+          
+          <!-- Avatar Selection Modal -->
+          <div id="avatar-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black uppercase italic text-white">Select Avatar</h3>
+                <button id="close-avatar-modal" class="text-slate-400 hover:text-white transition-colors text-2xl">&times;</button>
+              </div>
+              <div class="grid grid-cols-7 gap-3 mb-4">
+                ${AVATARS.map(avatar => `
+                  <button class="avatar-option w-12 h-12 bg-slate-800 hover:bg-blue-600/20 border-2 ${userStats.avatar === avatar ? 'border-blue-500' : 'border-white/10'} rounded-xl flex items-center justify-center text-2xl transition-all hover:scale-110" data-avatar="${avatar}">
+                    ${avatar}
+                  </button>
+                `).join('')}
+              </div>
+              <button id="save-avatar-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase text-white transition-all">
+                Save Avatar
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAuthPage() {
+      return `
+        <div class="min-h-screen bg-black text-white">
+          <div class="min-h-[80vh] flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl">
+              <div class="text-center mb-10">
+                <div class="inline-flex p-4 bg-blue-600/20 rounded-2xl mb-4">
+                  ${icons.shield}
+                </div>
+                <h2 class="text-3xl font-black uppercase italic tracking-tighter text-white">System Access</h2>
+              </div>
+              <form id="auth-form" class="space-y-5">
+                <div id="displayname-field" class="space-y-2 hidden">
+                  <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Callsign</label>
+                  <input type="text" id="displayName" placeholder="OPERATOR" class="w-full bg-black border border-white/10 rounded-2xl px-4 py-4 focus:outline-none focus:border-blue-500 transition-colors uppercase font-bold text-white" />
+                </div>
+                <div class="space-y-2">
+                  <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Email</label>
+                  <input type="email" required id="email" placeholder="user@retro.io" class="w-full bg-black border border-white/10 rounded-2xl px-4 py-4 focus:outline-none focus:border-blue-500 transition-colors text-white" />
+                </div>
+                <div class="space-y-2">
+                  <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Password</label>
+                  <input type="password" required id="password" placeholder="••••••••" class="w-full bg-black border border-white/10 rounded-2xl px-4 py-4 focus:outline-none focus:border-blue-500 transition-colors text-white" />
+                </div>
+                <div id="auth-error" class="hidden p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-bold text-center"></div>
+                <div id="auth-success" class="hidden p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-xs font-bold text-center"></div>
+                <button type="submit" id="auth-submit" class="w-full py-5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-2xl font-black uppercase italic tracking-widest shadow-xl shadow-blue-900/30 transition-all active:scale-95 text-white">
+                  Infiltrate
+                </button>
+              </form>
+              
+              <div class="my-6 flex items-center gap-3">
+                <div class="flex-1 h-px bg-white/10"></div>
+                <span class="text-xs font-black text-slate-600 uppercase">Or</span>
+                <div class="flex-1 h-px bg-white/10"></div>
+              </div>
+              
+              <button id="google-signin-btn" class="w-full py-4 bg-white hover:bg-slate-100 rounded-2xl font-black uppercase text-slate-900 flex items-center justify-center gap-3 transition-all active:scale-95 border border-white/20">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span class="text-sm tracking-wide">Continue with Google</span>
+              </button>
+              
+              <div class="mt-6 text-center space-y-3">
+                <button id="forgot-password-btn" class="text-xs font-bold text-slate-500 hover:text-blue-400 transition-colors block mx-auto">
+                  Forgot Password?
+                </button>
+                <button id="toggle-mode" class="text-xs font-bold text-slate-500 hover:text-blue-400 transition-colors">
+                  NEW RECRUIT? REGISTER HERE
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Forgot Password Modal -->
+          <div id="forgot-password-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-md w-full">
+              <h3 class="text-2xl font-black uppercase italic text-white mb-2">Reset Password</h3>
+              <p class="text-sm text-slate-400 mb-4">Enter your email address and we'll send you a password reset link.</p>
+              
+              <div class="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl mb-4">
+                <p class="text-xs text-yellow-400 font-bold">💡 Tip: Check your spam folder if you don't see the email in your inbox!</p>
+              </div>
+              
+              <div class="space-y-4">
+                <div class="space-y-2">
+                  <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Email</label>
+                  <input type="email" id="reset-email" placeholder="user@retro.io" class="w-full bg-black border border-white/10 rounded-2xl px-4 py-4 focus:outline-none focus:border-blue-500 transition-colors text-white" />
+                </div>
+                
+                <div id="reset-error" class="hidden p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-bold text-center"></div>
+                <div id="reset-success" class="hidden p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-xs font-bold text-center"></div>
+                
+                <div class="flex gap-3">
+                  <button id="cancel-reset-btn" class="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-black uppercase text-white transition-all">
+                    Cancel
+                  </button>
+                  <button id="send-reset-btn" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase text-white transition-all">
+                    Send Reset Link
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProfilePage() {
+      // Safety check - if no valid email, shouldn't be here
+      if (!currentUser || !currentUser.email) {
+        currentPage = 'auth';
+        render();
+        return '';
+      }
+      
+      return `
+        <div class="max-w-6xl mx-auto py-4 animate-in">
+          <button id="back-btn" class="flex items-center gap-2 text-slate-500 hover:text-white mb-4 group transition-colors">
+            ${icons.arrowLeft}
+            <span class="text-[10px] font-black uppercase tracking-widest">Return to Terminal</span>
+          </button>
+          
+          <div class="grid md:grid-cols-12 gap-4">
+            <!-- Left Column - Profile Card -->
+            <div class="md:col-span-3 bg-slate-900 border border-white/10 rounded-3xl p-6 flex flex-col items-center text-center h-fit">
+              <div class="relative group mb-4">
+                <div class="w-24 h-24 bg-blue-600/20 rounded-full border-2 border-blue-500/30 flex items-center justify-center overflow-hidden">
+                  <div class="text-5xl">${userStats.avatar || '👤'}</div>
+                </div>
+                <button id="change-avatar-btn" class="absolute bottom-0 right-0 p-1.5 bg-blue-600 rounded-full border-2 border-slate-900 text-white hover:scale-110 transition-transform text-xs">
+                  ${icons.camera}
+                </button>
+              </div>
+              <h3 class="text-xl font-black uppercase italic text-white tracking-tighter leading-tight">${currentUser.displayName || 'Operator'}</h3>
+              <p class="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1 mb-4">Registered Identity</p>
+              
+              <div class="w-full space-y-2 mb-4">
+                <div class="p-3 bg-black/40 rounded-xl border border-white/5 text-left">
+                  <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-0.5">Email Hash</p>
+                  <p class="text-[10px] font-bold text-slate-300 truncate">${currentUser.email}</p>
+                </div>
+                <div class="p-3 bg-black/40 rounded-xl border border-white/5 text-left">
+                  <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-0.5">User ID</p>
+                  <p class="text-[10px] font-bold text-slate-300 truncate">${currentUser.uid}</p>
+                </div>
+                <div class="p-3 bg-black/40 rounded-xl border border-white/5 text-left">
+                  <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-0.5">Auth Provider</p>
+                  <p class="text-[10px] font-bold text-slate-300">${currentUser.providerData?.[0]?.providerId || 'password'}</p>
+                </div>
+              </div>
+              
+              <button id="profile-signout-btn" class="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500 rounded-xl font-black uppercase italic tracking-widest text-[9px] transition-all">Sign Out</button>
+            </div>
+            
+            <!-- Middle Column - Stats -->
+            <div class="md:col-span-5 space-y-4">
+              <div class="bg-slate-900 border border-white/10 rounded-3xl p-6">
+                <h4 class="text-sm font-black uppercase italic text-white tracking-widest mb-4 flex items-center gap-2">
+                  ${icons.activity} <span>Metrics</span>
+                </h4>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-4 bg-black/40 border border-white/5 rounded-2xl">
+                    <div class="flex justify-between items-start mb-1">
+                      <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Wins</p>
+                      <div class="text-xs">${icons.trophy}</div>
+                    </div>
+                    <p class="text-xl font-black italic tracking-tighter text-white">${userStats.totalWins}</p>
+                    <div class="mt-1 flex gap-1 text-[8px] text-slate-500">
+                      <span>P:${userStats.pokerWins}</span>
+                      <span>•</span>
+                      <span>S:${userStats.strategyWins}</span>
+                    </div>
+                  </div>
+                  <div class="p-4 bg-black/40 border border-white/5 rounded-2xl">
+                    <div class="flex justify-between items-start mb-1">
+                      <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Credits</p>
+                      <div class="text-xs">${icons.coins}</div>
+                    </div>
+                    <p class="text-xl font-black italic tracking-tighter text-white">$${gameData?.playerStates?.[currentUser.uid]?.chips || userStats.totalChips}</p>
+                  </div>
+                  <div class="p-4 bg-black/40 border border-white/5 rounded-2xl">
+                    <div class="flex justify-between items-start mb-1">
+                      <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Nodes</p>
+                      <div class="text-xs">${icons.target}</div>
+                    </div>
+                    <p class="text-xl font-black italic tracking-tighter text-white">${userStats.nodesSecured}</p>
+                  </div>
+                  <div class="p-4 bg-black/40 border border-white/5 rounded-2xl cursor-pointer hover:border-blue-500/30 transition-all" id="rank-info-btn">
+                    <div class="flex justify-between items-start mb-1">
+                      <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Rank</p>
+                      <div class="text-lg">${getRankInfo(userStats.totalWins).icon}</div>
+                    </div>
+                    <p class="text-xl font-black italic tracking-tighter" style="color: ${getRankInfo(userStats.totalWins).color}">${getRank(userStats.totalWins)}</p>
+                    <div class="mt-1 text-[8px] text-slate-500 hover:text-blue-400 transition-colors flex items-center gap-1">
+                      <span class="text-[10px]">${icons.info}</span> <span>Details</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Compact Rank Progress -->
+                ${getRankInfo(userStats.totalWins).name !== 'Legend' ? `
+                  <div class="mt-4 p-4 bg-gradient-to-br from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-2xl">
+                    <div class="flex justify-between items-center mb-2">
+                      <p class="text-[9px] font-black uppercase text-white">Next: ${getNextRank(userStats.totalWins)?.name || 'Max'}</p>
+                      <p class="text-[9px] font-black text-blue-400">${userStats.totalWins}/${getNextRank(userStats.totalWins)?.wins || userStats.totalWins}</p>
+                    </div>
+                    <div class="w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                      <div class="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000" style="width: ${getRankProgress(userStats.totalWins)}%"></div>
+                    </div>
+                  </div>
+                ` : `
+                  <div class="mt-4 p-4 bg-gradient-to-br from-yellow-600/20 to-orange-600/20 border border-yellow-500/30 rounded-2xl text-center">
+                    <div class="text-2xl mb-1">⭐</div>
+                    <p class="text-xs font-black uppercase italic text-yellow-400">Legendary Status</p>
+                  </div>
+                `}
+              </div>
+            </div>
+            
+            <!-- Right Column - Settings -->
+            <div class="md:col-span-4 space-y-4">
+              <div class="bg-slate-900 border border-white/10 rounded-3xl p-6">
+                <h4 class="text-sm font-black uppercase italic text-white tracking-widest mb-4 flex items-center gap-2">
+                  ${icons.settings} <span>Config</span>
+                </h4>
+                <div class="space-y-3">
+                  <div class="space-y-1">
+                    <label class="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">Callsign</label>
+                    <input type="text" id="profile-name" value="${currentUser.displayName || ''}" class="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none font-bold uppercase text-white text-sm" />
+                  </div>
+                  <button id="update-profile-btn" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-black flex items-center justify-center gap-2 tracking-widest text-[9px] uppercase italic transition-all text-white">
+                    ${icons.save} Apply
+                  </button>
+                  
+                  <div class="p-4 bg-blue-600/5 border border-blue-500/10 rounded-2xl">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <h5 class="font-black text-[10px] uppercase text-blue-400">Credit Repair</h5>
+                        <p class="text-[8px] text-slate-500 italic mt-0.5 font-bold">Inject $2000</p>
+                      </div>
+                      <button id="topup-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl transition-all font-black text-[9px] uppercase italic text-white">Execute</button>
+                    </div>
+                  </div>
+                  
+                  <button id="delete-account-btn" class="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-xl font-black flex items-center justify-center gap-2 text-[9px] tracking-widest uppercase italic">
+                    ${icons.trash} Purge Identity
+                  </button>
+                </div>
+                <div id="profile-status" class="mt-4 text-center text-blue-400 font-bold text-[10px] animate-pulse uppercase tracking-widest hidden"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="delete-confirm" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 hidden">
+            <div class="max-w-sm w-full bg-slate-900 border border-red-500/50 rounded-[2.5rem] p-8 text-center space-y-6 shadow-2xl">
+              <div class="text-red-500 flex justify-center">${icons.alertTriangle}</div>
+              <h3 class="text-xl font-black uppercase italic text-white">Critical Confirmation</h3>
+              <p class="text-slate-400 text-xs font-bold leading-relaxed">This will permanently erase all data associated with this node. Proceed?</p>
+              <div class="space-y-3 pt-4">
+                <button id="confirm-delete-btn" class="w-full py-4 bg-red-600 hover:bg-red-500 rounded-2xl font-black text-white uppercase italic tracking-widest text-xs">Confirm Purge</button>
+                <button id="cancel-delete-btn" class="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-slate-400 uppercase italic tracking-widest text-xs">Cancel</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Rank System Info Modal -->
+          <div id="rank-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 hidden overflow-y-auto">
+            <div class="max-w-5xl w-full bg-slate-900 border border-blue-500/30 rounded-3xl p-6 shadow-2xl my-4 max-h-[90vh] overflow-y-auto">
+              <div class="flex justify-between items-start mb-6">
+                <div>
+                  <h3 class="text-2xl font-black uppercase italic text-white tracking-tighter">Rank System</h3>
+                  <p class="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Progression & Benefits</p>
+                </div>
+                <button id="close-rank-modal" class="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="grid md:grid-cols-2 gap-3">
+                ${[
+                  { name: 'Recruit', minWins: 0, maxWins: 4, color: '#64748b', icon: '🔰', description: 'New operator entering the neural network', bonus: 'Welcome Package: 2000 Credits' },
+                  { name: 'Specialist', minWins: 5, maxWins: 9, color: '#3b82f6', icon: '⚡', description: 'Proven tactical capability', bonus: '+10% starting energy in Strategy' },
+                  { name: 'Vanguard', minWins: 10, maxWins: 24, color: '#8b5cf6', icon: '🎯', description: 'Elite operative with command authority', bonus: '+200 starting chips in Poker' },
+                  { name: 'Veteran', minWins: 25, maxWins: 49, color: '#ec4899', icon: '💎', description: 'Seasoned warrior of countless victories', bonus: '+2 starting nodes in Strategy' },
+                  { name: 'Master', minWins: 50, maxWins: 99, color: '#f59e0b', icon: '👑', description: 'Master strategist dominating the battlefield', bonus: '+500 chips & +15% energy' },
+                  { name: 'Legend', minWins: 100, maxWins: 999999, color: '#eab308', icon: '⭐', description: 'Legendary status achieved', bonus: 'All bonuses + Special cosmetics' }
+                ].map(rank => {
+                  const isCurrentRank = userStats.totalWins >= rank.minWins && userStats.totalWins <= rank.maxWins;
+                  const isUnlocked = userStats.totalWins >= rank.minWins;
+                  
+                  return `
+                    <div class="p-4 rounded-2xl border-2 transition-all ${
+                      isCurrentRank 
+                        ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/50' 
+                        : isUnlocked
+                          ? 'bg-black/40 border-white/10'
+                          : 'bg-black/20 border-white/5 opacity-60'
+                    }">
+                      <div class="flex items-start gap-3">
+                        <div class="text-2xl ${isUnlocked ? '' : 'grayscale opacity-50'}">${rank.icon}</div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 mb-1 flex-wrap">
+                            <h4 class="text-base font-black uppercase italic tracking-tighter" style="color: ${isUnlocked ? rank.color : '#64748b'}">${rank.name}</h4>
+                            ${isCurrentRank ? '<span class="px-2 py-0.5 bg-blue-600 text-white text-[8px] font-black uppercase rounded-full">Current</span>' : ''}
+                          </div>
+                          <p class="text-[10px] text-slate-400 mb-2">${rank.description}</p>
+                          <div class="flex items-start gap-2 p-2 bg-black/40 rounded-lg border border-white/5">
+                            <div class="text-emerald-500 text-xs">${icons.zap}</div>
+                            <div class="flex-1 min-w-0">
+                              <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-0.5">Bonus</p>
+                              <p class="text-[10px] font-bold text-white">${rank.bonus}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="text-right">
+                          <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Wins</p>
+                          <p class="text-lg font-black italic tracking-tighter" style="color: ${isUnlocked ? rank.color : '#64748b'}">${rank.minWins}${rank.maxWins < 999999 ? `-${rank.maxWins}` : '+'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              
+              <div class="mt-4 p-4 bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-2xl">
+                <div class="flex items-start gap-3">
+                  <div class="text-blue-500 text-sm">${icons.info}</div>
+                  <div>
+                    <h5 class="text-xs font-black uppercase text-white mb-2">How Ranking Works</h5>
+                    <ul class="space-y-1 text-[10px] text-slate-400">
+                      <li class="flex gap-2"><span class="text-blue-500">•</span><span>Win games in Poker and Strategy to increase total wins</span></li>
+                      <li class="flex gap-2"><span class="text-blue-500">•</span><span>Each rank unlocks permanent bonuses for all future games</span></li>
+                      <li class="flex gap-2"><span class="text-blue-500">•</span><span>Progress saves in the cloud and persists across sessions</span></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHomePage() {
+      return `
+        <div class="grid md:grid-cols-2 gap-6 py-6 max-w-5xl mx-auto">
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-blue-500/50 transition-all group">
+            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-blue-600/10 transition-colors">
+              ${icons.dice}
+            </div>
+            <div>
+              <h3 class="text-2xl font-black uppercase italic text-white">Royal Hold'em</h3>
+              <p class="text-slate-400 font-medium mt-1 text-sm">No-limit neural poker simulation</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="poker-solo-btn" class="py-3 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase italic tracking-widest text-[10px] border border-white/5 text-white transition-all">Solo Link</button>
+              <button id="poker-multi-btn" class="py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-blue-900/30 text-white transition-all">Online Node</button>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-blue-500/50 transition-all group">
+            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-blue-600/10 transition-colors">
+              ${icons.globe}
+            </div>
+            <div>
+              <h3 class="text-2xl font-black uppercase italic text-white">Global Takeover</h3>
+              <p class="text-slate-400 font-medium mt-1 text-sm">Tactical node-based conquest</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="strategy-solo-btn" class="py-3 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase italic tracking-widest text-[10px] border border-white/5 text-white transition-all">Solo Link</button>
+              <button id="strategy-multi-btn" class="py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-blue-900/30 text-white transition-all">Online Node</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderPokerSetup() {
+      return `
+        <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+          <div class="max-w-2xl mx-auto">
+            <div class="bg-slate-800/50 backdrop-blur-xl p-8 rounded-2xl border border-purple-500/20 shadow-2xl">
+              <h2 class="text-3xl font-bold text-white mb-6">Poker Setup</h2>
+              
+              <div class="space-y-6">
+                <div>
+                  <label class="block text-purple-300 mb-3 text-lg">Number of AI Players</label>
+                  <div class="flex gap-3">
+                    ${[1, 2, 3, 4].map(count => `
+                      <button
+                        class="ai-count-btn flex-1 py-4 ${aiPlayerCount === count ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-slate-700/50 hover:bg-slate-600/50'} text-white font-semibold rounded-lg transition-all duration-200 border ${aiPlayerCount === count ? 'border-purple-400' : 'border-purple-500/30'}"
+                        data-count="${count}"
+                      >
+                        ${count} AI
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+                
+                <div class="bg-slate-900/50 p-4 rounded-lg border border-purple-500/20">
+                  <h3 class="text-purple-300 font-semibold mb-2">Game Info:</h3>
+                  <ul class="text-slate-300 text-sm space-y-1">
+                    <li>• Starting chips: 1,000 per player</li>
+                    <li>• Minimum bet: 20 chips</li>
+                    <li>• Enhanced AI with strategic betting</li>
+                    <li>• Game continues until one player remains</li>
+                  </ul>
+                </div>
+                
+                <div class="flex gap-3">
+                  <button
+                    id="back-to-menu-btn"
+                    class="flex-1 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-purple-300 rounded-lg transition-all duration-200 border border-purple-500/30"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    id="start-poker-btn"
+                    class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-purple-500/50"
+                  >
+                    Start Game
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLobbyPage() {
+      const selectedGameType = currentPage === 'poker-lobby' ? GAME_TYPES.POKER : GAME_TYPES.STRATEGY;
+      const gameTitle = selectedGameType === GAME_TYPES.POKER ? 'Royal Hold\'em' : 'Global Takeover';
+      
+      return `
+        <div class="max-w-5xl mx-auto py-4">
+          <button id="lobby-back-btn" class="flex items-center gap-2 text-slate-500 hover:text-white mb-4 transition-colors">
+            ${icons.arrowLeft}
+            <span class="text-[10px] font-black uppercase tracking-widest">Back to Menu</span>
+          </button>
+          
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6">
+            <div class="flex justify-between items-center mb-6">
+              <div>
+                <h2 class="text-2xl font-black uppercase italic text-white">${gameTitle} Lobbies</h2>
+                <p class="text-xs text-slate-500 uppercase tracking-widest mt-1">Multiplayer Matchmaking</p>
+              </div>
+              <button id="create-lobby-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase text-[10px] italic text-white transition-all">
+                Create Lobby
+              </button>
+            </div>
+            
+            <!-- Search Bar -->
+            <div class="mb-6">
+              <div class="relative">
+                <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </div>
+                <input 
+                  type="text" 
+                  id="lobby-search" 
+                  placeholder="Search by lobby ID or host name..." 
+                  class="w-full bg-black/60 border border-white/10 rounded-xl px-12 py-3 focus:border-blue-500 outline-none font-medium text-white text-sm placeholder:text-slate-600"
+                />
+                <button id="refresh-lobbies-btn" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all">
+                  ${icons.refresh}
+                </button>
+              </div>
+            </div>
+            
+            <div id="lobbies-container" class="space-y-3">
+              ${availableLobbies.length === 0 ? `
+                <div class="text-center py-12">
+                  <div class="text-slate-600 mb-3">${icons.globe}</div>
+                  <p class="text-slate-500 font-bold text-sm">No active lobbies</p>
+                  <p class="text-slate-600 text-xs mt-1">Create one to get started!</p>
+                </div>
+              ` : availableLobbies.map(lobby => `
+                <div class="lobby-item p-4 bg-black/40 border border-white/10 rounded-2xl hover:border-blue-500/30 transition-all" data-lobby-id="${lobby.id}" data-host-name="${lobby.hostName.toLowerCase()}">
+                  <div class="flex justify-between items-center">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-3 mb-2">
+                        <h3 class="text-lg font-black uppercase italic text-white">${lobby.hostName}'s Game</h3>
+                        <span class="px-2 py-1 bg-blue-600/20 text-blue-400 text-[9px] font-black uppercase rounded-full">
+                          ${lobby.players.length}/${lobby.maxPlayers} Players
+                        </span>
+                      </div>
+                      <div class="flex gap-4 text-[10px] text-slate-500">
+                        <span>ID: <span class="lobby-id">${lobby.id}</span></span>
+                        <span>•</span>
+                        <span>Created ${new Date(lobby.createdAt).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+                    <button data-lobby-id="${lobby.id}" class="join-lobby-btn px-6 py-3 ${lobby.players.length >= lobby.maxPlayers ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'} rounded-xl font-black uppercase text-[10px] text-white transition-all" ${lobby.players.length >= lobby.maxPlayers ? 'disabled' : ''}>
+                      ${lobby.players.length >= lobby.maxPlayers ? 'Full' : 'Join'}
+                    </button>
+                  </div>
+                  <div class="mt-3 flex gap-2">
+                    ${lobby.players.map(p => `
+                      <div class="px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+                        <span class="text-[10px] font-bold text-slate-300">${p.name}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWaitingRoom() {
+      if (!gameData) return '';
+      
+      const isHost = gameData.hostId === currentUser.uid;
+      const gameTitle = gameData.type === GAME_TYPES.POKER ? 'Royal Hold\'em' : 'Global Takeover';
+      
+      return `
+        <div class="max-w-4xl mx-auto py-4">
+          <button id="leave-lobby-btn" class="flex items-center gap-2 text-slate-500 hover:text-white mb-4 transition-colors">
+            ${icons.arrowLeft}
+            <span class="text-[10px] font-black uppercase tracking-widest">Leave Lobby</span>
+          </button>
+          
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-8">
+            <div class="text-center mb-8">
+              <h2 class="text-3xl font-black uppercase italic text-white mb-2">${gameTitle}</h2>
+              <p class="text-sm text-slate-500 uppercase tracking-widest">Waiting Room</p>
+              <div class="mt-4 px-4 py-2 bg-blue-600/20 border border-blue-500/30 rounded-xl inline-block">
+                <p class="text-xs font-black text-blue-400">LOBBY CODE: ${gameData.id}</p>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              ${gameData.players.map(player => `
+                <div class="p-6 bg-black/40 border border-white/10 rounded-2xl text-center">
+                  <div class="w-16 h-16 bg-blue-600/20 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl">
+                    ${player.id === gameData.hostId ? '👑' : '👤'}
+                  </div>
+                  <p class="font-black uppercase text-white text-sm truncate">${player.name}</p>
+                  <p class="text-[9px] text-slate-500 uppercase mt-1">${player.id === gameData.hostId ? 'Host' : 'Player'}</p>
+                </div>
+              `).join('')}
+              ${Array(gameData.maxPlayers - gameData.players.length).fill(0).map((_, idx) => `
+                <div class="p-6 bg-black/20 border border-white/5 rounded-2xl text-center border-dashed">
+                  <div class="w-16 h-16 bg-white/5 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl text-slate-600">
+                    ${idx + gameData.players.length + 1}
+                  </div>
+                  <p class="font-black uppercase text-slate-600 text-sm">Empty</p>
+                  <p class="text-[9px] text-slate-700 uppercase mt-1">Slot ${idx + gameData.players.length + 1}</p>
+                </div>
+              `).join('')}
+            </div>
+            
+            ${isHost ? `
+              <div class="space-y-3">
+                <button id="start-game-btn" ${gameData.players.length < 2 ? 'disabled' : ''} class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-xl font-black uppercase text-sm text-white transition-all">
+                  ${gameData.players.length < 2 ? 'Waiting for Players...' : 'Start Game'}
+                </button>
+                <p class="text-center text-xs text-slate-500">You are the host - start when ready</p>
+              </div>
+            ` : `
+              <div class="text-center">
+                <div class="animate-pulse text-blue-500 mb-3">${icons.refresh}</div>
+                <p class="text-sm font-bold text-slate-400">Waiting for host to start...</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderGamePage() {
+      if (gameData.type === GAME_TYPES.STRATEGY) {
+        return renderStrategyGame();
+      } else if (gameData.type === GAME_TYPES.POKER) {
+        return renderPokerGame();
+      }
+      return '<div class="text-white">Loading game...</div>';
+    }
+
+    function renderStrategyGame() {
+      // Check if multiplayer
+      const isMulti = gameData.players && gameData.players.length > 1;
+      const myPlayerId = currentUser.uid;
+      const isMyTurn = isMulti ? gameData.currentTurn === myPlayerId : gameData.turn === 'player';
+      const currentEnergy = isMulti ? (gameData.playerEnergy?.[myPlayerId] || 0) : gameData.energy;
+      
+      return `
+        <div class="grid lg:grid-cols-4 gap-4 pb-4">
+          <div class="lg:col-span-3 space-y-4">
+            <div class="flex justify-between items-end">
+              <div class="space-y-0.5">
+                <h2 class="text-2xl font-black uppercase italic text-white">Global Takeover</h2>
+                <p class="text-slate-500 font-bold text-[10px] uppercase">Grid Interface</p>
+              </div>
+              <div class="flex gap-3">
+                <div class="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 flex items-center gap-2">
+                  ${icons.zap}
+                  <span class="font-black text-lg text-white">${currentEnergy}</span>
+                </div>
+                <div class="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 flex items-center gap-2">
+                  ${icons.activity}
+                  <span class="font-black text-[10px] uppercase italic ${isMyTurn ? 'text-blue-400' : 'text-white'}">
+                    ${isMyTurn ? 'YOUR TURN' : 'Waiting...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="aspect-square bg-slate-900 rounded-3xl p-3 border border-white/10 grid grid-cols-8 gap-1.5 relative overflow-hidden">
+              ${gameData.grid.map((node, i) => {
+                // Determine color based on owner
+                let bgClass = 'bg-white/5 border-white/5';
+                if (node.owner) {
+                  if (isMulti) {
+                    // Multiplayer: different colors for different players
+                    const playerIndex = gameData.players.findIndex(p => p.id === node.owner);
+                    const colors = [
+                      'bg-blue-600/20 border-blue-500/50',
+                      'bg-red-600/20 border-red-500/50', 
+                      'bg-green-600/20 border-green-500/50',
+                      'bg-yellow-600/20 border-yellow-500/50',
+                      'bg-purple-600/20 border-purple-500/50',
+                      'bg-pink-600/20 border-pink-500/50',
+                      'bg-orange-600/20 border-orange-500/50',
+                      'bg-cyan-600/20 border-cyan-500/50'
+                    ];
+                    bgClass = colors[playerIndex] || 'bg-gray-600/20 border-gray-500/50';
+                  } else {
+                    // Solo: player vs AI
+                    bgClass = node.owner === 'player' ? 'bg-blue-600/20 border-blue-500/50' : 'bg-red-600/20 border-red-500/50';
+                  }
+                }
+                
+                const isMyNode = isMulti ? node.owner === myPlayerId : node.owner === 'player';
+                
+                return `
+                  <div data-node-index="${i}" class="strategy-node rounded-lg border transition-all cursor-pointer flex items-center justify-center ${bgClass} ${selectedStrategyNode === i ? 'ring-2 ring-white scale-105 z-10' : ''}">
+                    <div class="flex flex-col items-center">
+                      ${node.owner ? `<div class="text-xs">${isMyNode ? icons.radio : icons.target}</div>` : ''}
+                      <span class="text-[9px] font-black ${node.owner ? 'text-white' : 'text-slate-600'}">${node.strength}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+              
+              ${(gameData.status === 'gameover' || gameData.status === 'victory') ? `
+                <div class="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 z-50">
+                  ${gameData.status === 'victory' ? 
+                    `<div class="text-yellow-500 mb-4 text-6xl">${icons.trophy}</div>` : 
+                    `<div class="text-red-500 mb-4 text-6xl">${icons.alertTriangle}</div>`
+                  }
+                  <h2 class="text-5xl font-black uppercase italic text-white">${gameData.status === 'victory' ? 'Victory' : 'Defeated'}</h2>
+                  <button id="strategy-restart-btn" class="px-10 py-4 bg-blue-600 rounded-2xl font-black uppercase text-white mt-6">Return to Menu</button>
+                </div>
+              ` : ''}
+            </div>
+            
+            <div class="flex justify-center gap-3">
+              <button id="reinforce-btn" ${selectedStrategyNode === null || currentEnergy < 1 || !isMyTurn ? 'disabled' : ''} 
+                class="px-6 py-3 bg-slate-900 border border-white/10 rounded-xl font-black uppercase text-[10px] text-white disabled:opacity-50">
+                Reinforce (+1)
+              </button>
+              <button id="end-turn-btn" ${!isMyTurn ? 'disabled' : ''} 
+                class="px-6 py-3 bg-blue-600 rounded-xl font-black uppercase text-[10px] text-white disabled:opacity-50">
+                End Turn
+              </button>
+            </div>
+            
+            ${selectedStrategyNode !== null && gameData.grid[selectedStrategyNode]?.owner === (isMulti ? myPlayerId : 'player') && gameData.grid[selectedStrategyNode]?.strength > 1 ? `
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-slate-400 font-black mb-3 uppercase text-[9px]">Transfer Troops</p>
+                <div class="flex items-center gap-3">
+                  <div class="flex-1">
+                    <input type="range" id="transfer-slider" min="1" max="${gameData.grid[selectedStrategyNode].strength - 1}" value="${Math.floor((gameData.grid[selectedStrategyNode].strength - 1) / 2)}" 
+                      class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                    <div class="flex justify-between text-[9px] font-bold text-slate-500 mt-1">
+                      <span>1</span>
+                      <span id="transfer-amount">${Math.floor((gameData.grid[selectedStrategyNode].strength - 1) / 2)}</span>
+                      <span>${gameData.grid[selectedStrategyNode].strength - 1}</span>
+                    </div>
+                  </div>
+                  <div class="text-[9px] font-black text-slate-400 uppercase">
+                    Click another<br/>owned node
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div class="space-y-4">
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-4 h-[200px] flex flex-col">
+              <p class="text-slate-600 font-black mb-2 uppercase text-[9px]">Data Stream</p>
+              <div id="strategy-log-container" class="flex-1 overflow-y-auto font-mono text-[9px] space-y-1">
+                ${(gameData.logs || []).map(l => `
+                  <div class="text-slate-400 opacity-80">
+                    <span class="text-blue-500">></span> ${l}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Compact Field Manual -->
+          <div class="lg:col-span-4 bg-slate-900/50 border border-white/5 rounded-3xl p-6">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="bg-blue-600/20 p-2 rounded-xl text-sm">${icons.info}</div>
+              <div>
+                <h3 class="text-lg font-black uppercase italic text-white tracking-tighter">Field Manual</h3>
+                <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tactical Guidelines</p>
+              </div>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-4">
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-yellow-500 text-sm">
+                  ${icons.zap}
+                  <h4 class="font-black uppercase italic text-[10px] tracking-widest">Energy Grid</h4>
+                </div>
+                <p class="text-slate-400 text-[10px] leading-relaxed font-medium">
+                  Gain energy each turn based on controlled nodes. More territory = more resources per cycle.
+                </p>
+              </div>
+              
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-blue-500 text-sm">
+                  ${icons.sword}
+                  <h4 class="font-black uppercase italic text-[10px] tracking-widest">Capture Logic</h4>
+                </div>
+                <p class="text-slate-400 text-[10px] leading-relaxed font-medium">
+                  Select your node, click adjacent to attack. Cost: 2 Energy. Higher strength captures target.
+                </p>
+              </div>
+              
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-emerald-500 text-sm">
+                  ${icons.shieldIcon}
+                  <h4 class="font-black uppercase italic text-[10px] tracking-widest">Reinforcement</h4>
+                </div>
+                <p class="text-slate-400 text-[10px] leading-relaxed font-medium">
+                  Boost selected node strength. Cost: 1 Energy. Stronger nodes resist attacks.
+                </p>
+              </div>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="p-3 bg-black/40 rounded-xl border border-white/5">
+                <p class="text-[8px] font-black text-slate-600 uppercase mb-0.5">Victory</p>
+                <p class="text-[9px] font-bold text-white">Eliminate all opponents</p>
+              </div>
+              <div class="p-3 bg-black/40 rounded-xl border border-white/5">
+                <p class="text-[8px] font-black text-slate-600 uppercase mb-0.5">Defeat</p>
+                <p class="text-[9px] font-bold text-white">Loss of all your nodes</p>
+              </div>
+              <div class="p-3 bg-black/40 rounded-xl border border-white/5">
+                <p class="text-[8px] font-black text-slate-600 uppercase mb-0.5">Players</p>
+                <p class="text-[9px] font-bold text-white">${isMulti ? `${gameData.players.length} Active` : 'You vs AI'}</p>
+              </div>
+              <div class="p-3 bg-black/40 rounded-xl border border-white/5">
+                <p class="text-[8px] font-black text-slate-600 uppercase mb-0.5">Energy Cap</p>
+                <p class="text-[9px] font-bold text-white">Max 50 energy</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPokerGame() {
+      const myState = gameData.playerStates?.[currentUser.uid] || { chips: 0, cards: [], contribution: 0, folded: false };
+      const opponents = gameData.players.filter(p => p.id !== currentUser.uid);
+      const actionStart = gameData.actionStartIndex || 0;
+      const currentPlayerIndex = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const currentPlayer = gameData.players[currentPlayerIndex];
+      const isMyTurn = currentPlayer?.id === currentUser.uid;
+      const isResetting = gameData.status === 'resolution' || gameData.status === 'resetting';
+      
+      // Evaluate current hand
+      const myHand = evaluateHandName(myState.cards || [], gameData.communityCards || []);
+      
+      return `
+        <div class="flex flex-col gap-4 max-w-6xl mx-auto">
+          <!-- Turn Indicator -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-4 text-center">
+            <p class="text-xs font-black uppercase text-slate-500 mb-1">Current Turn</p>
+            <p class="text-lg font-black uppercase italic ${isMyTurn ? 'text-blue-400' : 'text-white'}">
+              ${isMyTurn ? '🎯 YOUR TURN' : `⏳ ${currentPlayer?.name || 'Waiting...'}`}
+            </p>
+          </div>
+          
+          <!-- Poker Table -->
+          <div class="relative min-h-[420px] bg-emerald-900/40 rounded-[100px] border-[10px] border-slate-900 flex flex-col items-center justify-center p-8 pt-20 overflow-visible">
+            
+            <!-- Community Cards & Pot Row -->
+            <div class="flex gap-6 relative z-10 items-center">
+              <div class="flex gap-3 bg-black/20 p-4 rounded-3xl border border-white/5">
+                ${gameData.communityCards.map(c => renderCard(c)).join('')}
+                ${Array(Math.max(0, 5 - (gameData.communityCards?.length || 0))).fill(0).map(() => 
+                  '<div class="w-14 h-20 border-2 border-dashed border-white/5 rounded-lg bg-black/10"></div>'
+                ).join('')}
+              </div>
+              
+              <!-- Pot -->
+              <div class="bg-black/90 px-8 py-4 rounded-2xl border border-white/10">
+                <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 text-center">Pot</p>
+                <div class="font-black text-2xl flex items-center gap-2 text-white justify-center">
+                  ${icons.coins} $${gameData.pot}
+                </div>
+              </div>
+            </div>
+            
+            <!-- Opponents - arranged in arc around table -->
+            <div class="absolute top-[-50px] w-full max-w-5xl flex ${opponents.length <= 3 ? 'justify-around' : 'justify-between'} px-4 z-20 flex-wrap gap-4">
+              ${opponents.map(p => {
+                const s = gameData.playerStates[p.id];
+                const isTurn = currentPlayer?.id === p.id;
+                return `
+                  <div class="flex flex-col items-center gap-2 transition-all ${isTurn ? 'scale-110' : 'opacity-85'}">
+                    <div class="w-16 h-16 rounded-full border-4 ${isTurn ? 'border-blue-500' : 'border-slate-800'} bg-slate-900 flex items-center justify-center text-2xl relative">
+                      ${p.isAI ? '🤖' : '👤'}
+                      ${s?.folded ? '<div class="absolute inset-0 bg-black/85 flex items-center justify-center text-[8px] font-black text-red-500 uppercase">FOLD</div>' : ''}
+                    </div>
+                    <div class="flex gap-1 h-10">
+                      ${s?.cards?.map(c => `
+                        <div class="w-7 h-10 bg-white rounded-md flex items-center justify-center border border-slate-300">
+                          ${isResetting && !s.folded ? 
+                            `<div class="text-[9px] font-black ${['♥','♦'].includes(c.suit) ? 'text-red-600' : 'text-slate-900'}">${c.rank}${c.suit}</div>` : 
+                            '<div class="w-full h-full bg-blue-900 rounded-md"></div>'
+                          }
+                        </div>
+                      `).join('') || ''}
+                    </div>
+                    <div class="bg-black px-2 py-1 rounded-full text-[9px] font-black border border-white/10">
+                      <p class="text-emerald-400 truncate max-w-[80px]">${p.name}</p>
+                      <p class="text-white text-center">$${s?.chips || 0}</p>
+                      ${s?.contribution > 0 ? `<p class="text-blue-400 text-center text-[8px]">Bet: $${s.contribution}</p>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Player Controls -->
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="md:col-span-2 bg-slate-900 border border-white/10 rounded-3xl p-6 flex items-center gap-8 relative overflow-hidden min-h-[200px]">
+              ${isResetting ? `
+                <div class="absolute inset-0 bg-black/70 backdrop-blur-xl z-20 flex flex-col items-center justify-center">
+                  <div class="animate-spin text-blue-500 mb-3 text-sm">${icons.refresh}</div>
+                  <span class="font-black italic text-white text-sm">Resetting Cycle...</span>
+                </div>
+              ` : ''}
+              
+              <div class="flex flex-col gap-3">
+                <div class="flex gap-2 p-3 bg-black/40 rounded-3xl border border-white/5">
+                  ${myState.cards?.map(c => renderCard(c)).join('') || ''}
+                </div>
+                ${myHand ? `
+                  <div class="px-4 py-2 bg-blue-600/20 border border-blue-500/30 rounded-xl text-center">
+                    <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-0.5">Your Hand</p>
+                    <p class="text-sm font-black text-white uppercase italic">${myHand}</p>
+                  </div>
+                ` : ''}
+              </div>
+              
+              <div class="flex-1 space-y-4">
+                <div class="flex justify-between items-center text-[10px] font-black uppercase">
+                  <div class="text-slate-500">In Pot: <span class="text-white">$${myState.contribution}</span></div>
+                  <div class="text-emerald-400">Balance: $${myState.chips}</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <button id="fold-btn" ${!isMyTurn || myState.folded || isResetting ? 'disabled' : ''} 
+                    class="py-3 bg-white/5 rounded-2xl font-black uppercase text-[10px] text-white disabled:opacity-50">
+                    Fold
+                  </button>
+                  <button id="call-btn" ${!isMyTurn || myState.folded || isResetting ? 'disabled' : ''} 
+                    class="py-3 bg-blue-600 rounded-2xl font-black uppercase text-[10px] text-white disabled:opacity-50">
+                    ${gameData.currentBet === myState.contribution ? 'Check' : 'Call'}
+                  </button>
+                  <div class="col-span-2 flex gap-2">
+                    <div class="relative flex-1">
+                      <div class="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-black text-xs">$</div>
+                      <input type="number" id="bet-input" value="${betAmount}" 
+                        class="w-full h-full bg-black/90 border border-white/20 rounded-2xl pl-8 pr-4 py-3 font-bold text-white focus:border-emerald-500 outline-none text-sm" />
+                    </div>
+                    <button id="raise-btn" ${!isMyTurn || myState.folded || isResetting ? 'disabled' : ''} 
+                      class="px-8 py-3 bg-emerald-600 rounded-2xl font-black uppercase text-[10px] text-white disabled:opacity-50">
+                      Raise
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Action Log -->
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-4 h-[200px] flex flex-col">
+              <div id="poker-log-container" class="flex-1 overflow-y-auto font-mono text-[9px] space-y-1">
+                ${(gameData.logs || []).map(l => `
+                  <div class="p-1.5 rounded bg-white/5 border-l-2 border-slate-700 text-slate-400">${l}</div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCard({ suit, rank }) {
+      return `
+        <div class="w-14 h-20 bg-white rounded-lg flex flex-col justify-between p-1.5 border border-slate-200 shadow-xl">
+          <div class="font-black text-xs ${['♥','♦'].includes(suit) ? 'text-red-600' : 'text-slate-900'}">${rank}</div>
+          <div class="text-2xl self-center ${['♥','♦'].includes(suit) ? 'text-red-600' : 'text-slate-900'}">${suit}</div>
+          <div class="font-black text-xs rotate-180 ${['♥','♦'].includes(suit) ? 'text-red-600' : 'text-slate-900'}">${rank}</div>
+        </div>
+      `;
+    }
+
+    // Event Listeners
+    function attachAuthListeners() {
+      const form = document.getElementById('auth-form');
+      const toggleBtn = document.getElementById('toggle-mode');
+      const displayNameField = document.getElementById('displayname-field');
+      const submitBtn = document.getElementById('auth-submit');
+      let isLogin = true;
+
+      toggleBtn.addEventListener('click', () => {
+        isLogin = !isLogin;
+        if (isLogin) {
+          displayNameField.classList.add('hidden');
+          submitBtn.textContent = 'Infiltrate';
+          toggleBtn.textContent = 'NEW RECRUIT? REGISTER HERE';
+        } else {
+          displayNameField.classList.remove('hidden');
+          submitBtn.textContent = 'Establish Link';
+          toggleBtn.textContent = 'ALREADY ENLISTED? LOGIN';
+        }
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const displayName = document.getElementById('displayName').value;
+        const errorDiv = document.getElementById('auth-error');
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span class="animate-spin inline-block">${icons.refresh}</span>`;
+        errorDiv.classList.add('hidden');
+
+        try {
+          if (isLogin) {
+            await signInWithEmailAndPassword(auth, email, password);
+          } else {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(userCredential.user, { 
+              displayName: displayName || email.split('@')[0] 
+            });
+          }
+        } catch (err) {
+          errorDiv.textContent = err.message.replace('Firebase:', '');
+          errorDiv.classList.remove('hidden');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = isLogin ? 'Infiltrate' : 'Establish Link';
+        }
+      });
+      
+      // Google Sign-In
+      const googleSignInBtn = document.getElementById('google-signin-btn');
+      if (googleSignInBtn) {
+        googleSignInBtn.addEventListener('click', async () => {
+          const errorDiv = document.getElementById('auth-error');
+          errorDiv.classList.add('hidden');
+          
+          try {
+            const provider = new GoogleAuthProvider();
+            // Explicitly set the client ID
+            provider.setCustomParameters({
+              prompt: 'select_account',
+              client_id: '441287288010-q519vqjkql0fkviodtvlmcf1g4sh8499.apps.googleusercontent.com'
+            });
+            await signInWithPopup(auth, provider);
+          } catch (err) {
+            console.error('Google Sign-In Error:', err);
+            console.error('Error code:', err.code);
+            console.error('Error message:', err.message);
+            
+            // Provide helpful error messages
+            let errorMessage = err.message.replace('Firebase:', '').trim();
+            
+            if (err.code === 'auth/operation-not-allowed') {
+              errorMessage = 'Google Sign-In configuration issue. Please ensure:\n1. Google provider is enabled in Firebase Console\n2. Project support email is set\n3. This domain is authorized';
+            } else if (err.code === 'auth/popup-closed-by-user') {
+              errorMessage = 'Sign-in cancelled. Please try again.';
+            } else if (err.code === 'auth/popup-blocked') {
+              errorMessage = 'Popup blocked by browser. Please allow popups and try again.';
+            } else if (err.code === 'auth/unauthorized-domain') {
+              errorMessage = 'This domain is not authorized. Add it in Firebase Console → Authentication → Settings → Authorized domains';
+            }
+            
+            errorDiv.innerHTML = errorMessage.replace(/\n/g, '<br>');
+            errorDiv.classList.remove('hidden');
+          }
+        });
+      }
+      
+      // Forgot Password Modal
+      const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+      const forgotPasswordModal = document.getElementById('forgot-password-modal');
+      const cancelResetBtn = document.getElementById('cancel-reset-btn');
+      const sendResetBtn = document.getElementById('send-reset-btn');
+      
+      if (forgotPasswordBtn) {
+        forgotPasswordBtn.addEventListener('click', () => {
+          forgotPasswordModal.classList.remove('hidden');
+          document.getElementById('reset-error').classList.add('hidden');
+          document.getElementById('reset-success').classList.add('hidden');
+          document.getElementById('reset-email').value = '';
+        });
+      }
+      
+      if (cancelResetBtn) {
+        cancelResetBtn.addEventListener('click', () => {
+          forgotPasswordModal.classList.add('hidden');
+        });
+      }
+      
+      // Click outside modal to close
+      if (forgotPasswordModal) {
+        forgotPasswordModal.addEventListener('click', (e) => {
+          if (e.target === forgotPasswordModal) {
+            forgotPasswordModal.classList.add('hidden');
+          }
+        });
+      }
+      
+      if (sendResetBtn) {
+        sendResetBtn.addEventListener('click', async () => {
+          const email = document.getElementById('reset-email').value;
+          const resetError = document.getElementById('reset-error');
+          const resetSuccess = document.getElementById('reset-success');
+          
+          resetError.classList.add('hidden');
+          resetSuccess.classList.add('hidden');
+          
+          if (!email) {
+            resetError.textContent = 'Please enter your email address';
+            resetError.classList.remove('hidden');
+            return;
+          }
+          
+          try {
+            sendResetBtn.disabled = true;
+            sendResetBtn.textContent = 'Sending...';
+            
+            console.log('Attempting to send password reset email to:', email);
+            
+            await sendPasswordResetEmail(auth, email, {
+              url: window.location.origin,
+              handleCodeInApp: false
+            });
+            
+            console.log('Password reset email sent successfully');
+            
+            resetSuccess.innerHTML = `
+              ✅ Password reset email sent!<br>
+              <br>
+              <strong>📧 Check your inbox</strong><br>
+              <span class="text-xs">The email should arrive in 1-2 minutes.</span><br>
+              <br>
+              <strong>📫 Not there?</strong><br>
+              <span class="text-xs">• Check your <strong>spam/junk folder</strong><br>
+              • Look for email from Firebase Authentication<br>
+              • Add noreply@retro-royal-casino.firebaseapp.com to contacts</span>
+            `;
+            resetSuccess.classList.remove('hidden');
+            
+            setTimeout(() => {
+              forgotPasswordModal.classList.add('hidden');
+            }, 3000);
+          } catch (err) {
+            console.error('Password reset error:', err);
+            console.error('Error code:', err.code);
+            
+            let errorMessage = err.message.replace('Firebase:', '').trim();
+            
+            if (err.code === 'auth/user-not-found') {
+              errorMessage = 'No account found with this email address.';
+            } else if (err.code === 'auth/invalid-email') {
+              errorMessage = 'Please enter a valid email address.';
+            } else if (err.code === 'auth/missing-continue-uri') {
+              errorMessage = 'Configuration error. Please contact support.';
+            } else if (err.code === 'auth/too-many-requests') {
+              errorMessage = 'Too many attempts. Please try again later.';
+            }
+            
+            resetError.textContent = errorMessage;
+            resetError.classList.remove('hidden');
+          } finally {
+            sendResetBtn.disabled = false;
+            sendResetBtn.textContent = 'Send Reset Link';
+          }
+        });
+      }
+    }
+
+    function attachProfileListeners() {
+      document.getElementById('back-btn').addEventListener('click', () => {
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('home-btn').addEventListener('click', () => {
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      document.getElementById('profile-signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      document.getElementById('update-profile-btn').addEventListener('click', async () => {
+        try {
+          const newName = document.getElementById('profile-name').value;
+          await updateProfile(auth.currentUser, { displayName: newName });
+          currentUser = auth.currentUser;
+          const statusDiv = document.getElementById('profile-status');
+          statusDiv.textContent = 'Profile updated!';
+          statusDiv.classList.remove('hidden');
+          setTimeout(() => statusDiv.classList.add('hidden'), 2000);
+        } catch (e) {
+          console.error('Error updating profile:', e);
+        }
+      });
+
+      document.getElementById('topup-btn').addEventListener('click', () => {
+        if (!gameData || !gameData.playerStates) return;
+        const states = { ...gameData.playerStates };
+        if (states[currentUser.uid]) {
+          states[currentUser.uid].chips = 2000;
+          states[currentUser.uid].folded = false;
+          states[currentUser.uid].isAllIn = false;
+          updateGameState({ 
+            playerStates: states, 
+            logs: [...(gameData.logs || []), "💰 Credits restored to $2000"] 
+          });
+          updateStats({ totalChips: 2000 });
+          const statusDiv = document.getElementById('profile-status');
+          statusDiv.textContent = 'Credits Repaired!';
+          statusDiv.classList.remove('hidden');
+          setTimeout(() => statusDiv.classList.add('hidden'), 2000);
+        }
+      });
+
+      document.getElementById('delete-account-btn').addEventListener('click', () => {
+        document.getElementById('delete-confirm').classList.remove('hidden');
+      });
+
+      document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+        document.getElementById('delete-confirm').classList.add('hidden');
+      });
+
+      document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+        try {
+          await deleteUser(auth.currentUser);
+        } catch (e) {
+          console.error('Error deleting user:', e);
+        }
+      });
+
+      // Rank info modal
+      const rankInfoBtn = document.getElementById('rank-info-btn');
+      const rankModal = document.getElementById('rank-modal');
+      
+      // Avatar modal
+      let selectedAvatar = userStats.avatar || '👤';
+      
+      const changeAvatarBtn = document.getElementById('change-avatar-btn');
+      if (changeAvatarBtn) {
+        changeAvatarBtn.addEventListener('click', () => {
+          document.getElementById('avatar-modal').classList.remove('hidden');
+        });
+      }
+      
+      const closeAvatarModal = document.getElementById('close-avatar-modal');
+      if (closeAvatarModal) {
+        closeAvatarModal.addEventListener('click', () => {
+          document.getElementById('avatar-modal').classList.add('hidden');
+        });
+      }
+      
+      // Click outside modal to close
+      const avatarModal = document.getElementById('avatar-modal');
+      if (avatarModal) {
+        avatarModal.addEventListener('click', (e) => {
+          if (e.target === avatarModal) {
+            avatarModal.classList.add('hidden');
+          }
+        });
+      }
+      
+      // Avatar selection
+      document.querySelectorAll('.avatar-option').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          selectedAvatar = e.currentTarget.getAttribute('data-avatar');
+          // Update visual selection
+          document.querySelectorAll('.avatar-option').forEach(b => {
+            b.classList.remove('border-blue-500');
+            b.classList.add('border-white/10');
+          });
+          e.currentTarget.classList.remove('border-white/10');
+          e.currentTarget.classList.add('border-blue-500');
+        });
+      });
+      
+      const saveAvatarBtn = document.getElementById('save-avatar-btn');
+      if (saveAvatarBtn) {
+        saveAvatarBtn.addEventListener('click', async () => {
+          await updateStats({ avatar: selectedAvatar });
+          document.getElementById('avatar-modal').classList.add('hidden');
+          render();
+        });
+      }
+      const closeRankModal = document.getElementById('close-rank-modal');
+      
+      if (rankInfoBtn) {
+        rankInfoBtn.addEventListener('click', () => {
+          rankModal.classList.remove('hidden');
+        });
+      }
+      
+      if (closeRankModal) {
+        closeRankModal.addEventListener('click', () => {
+          rankModal.classList.add('hidden');
+        });
+      }
+      
+      // Close modal on background click
+      rankModal?.addEventListener('click', (e) => {
+        if (e.target === rankModal) {
+          rankModal.classList.add('hidden');
+        }
+      });
+    }
+
+    function attachHomeListeners() {
+      document.getElementById('home-btn').addEventListener('click', () => {
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      document.getElementById('poker-solo-btn').addEventListener('click', () => {
+        currentPage = 'poker-setup';
+        render();
+      });
+
+      document.getElementById('poker-multi-btn').addEventListener('click', async () => {
+        currentPage = 'poker-lobby';
+        await loadLobbies(GAME_TYPES.POKER);
+        render();
+      });
+
+      document.getElementById('strategy-solo-btn').addEventListener('click', () => {
+        isMultiplayer = false;
+        startStrategyGame();
+      });
+
+      document.getElementById('strategy-multi-btn').addEventListener('click', async () => {
+        currentPage = 'strategy-lobby';
+        await loadLobbies(GAME_TYPES.STRATEGY);
+        render();
+      });
+    }
+    
+    function attachPokerSetupListeners() {
+      document.querySelectorAll('.ai-count-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          aiPlayerCount = parseInt(e.target.dataset.count);
+          render();
+        });
+      });
+    
+      document.getElementById('start-poker-btn')?.addEventListener('click', () => {
+        isMultiplayer = false;
+        startPokerGame();
+      });
+    
+      document.getElementById('back-to-menu-btn')?.addEventListener('click', () => {
+        currentPage = 'menu';
+        render();
+      });
+    }
+
+    function attachLobbyListeners() {
+      document.getElementById('home-btn')?.addEventListener('click', () => {
+        if (lobbyUnsubscribe) lobbyUnsubscribe();
+        if (window.lobbyListUnsubscribe) window.lobbyListUnsubscribe();
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('profile-btn')?.addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn')?.addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      document.getElementById('lobby-back-btn')?.addEventListener('click', () => {
+        if (lobbyUnsubscribe) lobbyUnsubscribe();
+        if (window.lobbyListUnsubscribe) window.lobbyListUnsubscribe();
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('create-lobby-btn')?.addEventListener('click', async () => {
+        const gameType = currentPage === 'poker-lobby' ? GAME_TYPES.POKER : GAME_TYPES.STRATEGY;
+        await createLobby(gameType);
+      });
+
+      // Search functionality
+      const searchInput = document.getElementById('lobby-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          const searchTerm = e.target.value.toLowerCase().trim();
+          const lobbyItems = document.querySelectorAll('.lobby-item');
+          
+          lobbyItems.forEach(item => {
+            const lobbyId = item.getAttribute('data-lobby-id').toLowerCase();
+            const hostName = item.getAttribute('data-host-name');
+            const lobbyIdText = item.querySelector('.lobby-id')?.textContent.toLowerCase() || '';
+            
+            if (lobbyId.includes(searchTerm) || hostName.includes(searchTerm) || lobbyIdText.includes(searchTerm)) {
+              item.style.display = '';
+            } else {
+              item.style.display = 'none';
+            }
+          });
+          
+          // Show "no results" message if all hidden
+          const visibleLobbies = Array.from(lobbyItems).filter(item => item.style.display !== 'none');
+          const container = document.getElementById('lobbies-container');
+          const existingNoResults = container.querySelector('.no-results-message');
+          
+          if (visibleLobbies.length === 0 && searchTerm !== '' && !existingNoResults) {
+            const noResultsDiv = document.createElement('div');
+            noResultsDiv.className = 'no-results-message text-center py-8';
+            noResultsDiv.innerHTML = `
+              <p class="text-slate-500 font-bold text-sm">No lobbies found</p>
+              <p class="text-slate-600 text-xs mt-1">Try a different search term</p>
+            `;
+            container.appendChild(noResultsDiv);
+          } else if (visibleLobbies.length > 0 && existingNoResults) {
+            existingNoResults.remove();
+          } else if (searchTerm === '' && existingNoResults) {
+            existingNoResults.remove();
+          }
+        });
+      }
+
+      // Refresh button
+      document.getElementById('refresh-lobbies-btn')?.addEventListener('click', async () => {
+        const gameType = currentPage === 'poker-lobby' ? GAME_TYPES.POKER : GAME_TYPES.STRATEGY;
+        const btn = document.getElementById('refresh-lobbies-btn');
+        btn.style.animation = 'spin 0.5s linear';
+        await loadLobbies(gameType);
+        render();
+        setTimeout(() => {
+          if (btn) btn.style.animation = '';
+        }, 500);
+      });
+
+      document.querySelectorAll('.join-lobby-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const lobbyId = e.target.getAttribute('data-lobby-id');
+          await joinLobby(lobbyId);
+        });
+      });
+    }
+
+    function attachWaitingRoomListeners() {
+      document.getElementById('home-btn')?.addEventListener('click', () => {
+        currentPage = 'menu';
+        render();
+      });
+
+      document.getElementById('profile-btn')?.addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn')?.addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      document.getElementById('leave-lobby-btn')?.addEventListener('click', async () => {
+        await leaveLobby();
+      });
+
+      document.getElementById('start-game-btn')?.addEventListener('click', async () => {
+        await startMultiplayerGame();
+      });
+    }
+
+    function attachStrategyListeners() {
+      document.getElementById('home-btn').addEventListener('click', () => {
+        if (unsubscribe) unsubscribe();
+        currentPage = 'menu';
+        gameData = null;
+        selectedStrategyNode = null;
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      // Node click handlers
+      document.querySelectorAll('.strategy-node').forEach(node => {
+        node.addEventListener('click', (e) => {
+          const index = parseInt(e.currentTarget.getAttribute('data-node-index'));
+          handleStrategyNodeClick(index);
+        });
+      });
+
+      const reinforceBtn = document.getElementById('reinforce-btn');
+      if (reinforceBtn) {
+        reinforceBtn.addEventListener('click', () => {
+          if (selectedStrategyNode !== null && gameData.energy >= 1 && gameData.turn === 'player') {
+            const newGrid = [...gameData.grid];
+            newGrid[selectedStrategyNode].strength += 1;
+            updateGameState({ 
+              grid: newGrid, 
+              energy: gameData.energy - 1,
+              logs: [...gameData.logs, `🛡️ Reinforced node [${newGrid[selectedStrategyNode].x}, ${newGrid[selectedStrategyNode].y}]`]
+            });
+          }
+        });
+      }
+
+      const endTurnBtn = document.getElementById('end-turn-btn');
+      if (endTurnBtn) {
+        endTurnBtn.addEventListener('click', () => {
+          if (gameData.turn === 'player') {
+            updateGameState({ 
+              turn: 'ai', 
+              logs: [...gameData.logs, "⌛ Player turn complete"] 
+            });
+          }
+        });
+      }
+
+      const restartBtn = document.getElementById('strategy-restart-btn');
+      if (restartBtn) {
+        restartBtn.addEventListener('click', () => {
+          startStrategyGame();
+        });
+      }
+      
+      // Transfer slider listener
+      const transferSlider = document.getElementById('transfer-slider');
+      if (transferSlider) {
+        transferSlider.addEventListener('input', (e) => {
+          const amountDisplay = document.getElementById('transfer-amount');
+          if (amountDisplay) {
+            amountDisplay.textContent = e.target.value;
+          }
+        });
+      }
+
+      // Auto-scroll logs
+      const logContainer = document.getElementById('strategy-log-container');
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
+
+    function attachPokerListeners() {
+      document.getElementById('home-btn').addEventListener('click', () => {
+        if (unsubscribe) unsubscribe();
+        currentPage = 'menu';
+        gameData = null;
+        ffActive = false;
+        resolutionStarted = false;
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+
+      const betInput = document.getElementById('bet-input');
+      if (betInput) {
+        betInput.addEventListener('change', (e) => {
+          betAmount = parseInt(e.target.value) || 0;
+        });
+      }
+
+      document.getElementById('fold-btn')?.addEventListener('click', () => {
+        handlePokerAction('FOLD');
+      });
+
+      document.getElementById('call-btn')?.addEventListener('click', () => {
+        handlePokerAction('CALL');
+      });
+
+      document.getElementById('raise-btn')?.addEventListener('click', () => {
+        handlePokerAction('RAISE', betAmount);
+      });
+
+      // Auto-scroll logs
+      const logContainer = document.getElementById('poker-log-container');
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
+
+    // Multiplayer Lobby Functions
+    async function loadLobbies(gameType) {
+      try {
+        // Unsubscribe from previous lobby list listener if exists
+        if (window.lobbyListUnsubscribe) {
+          window.lobbyListUnsubscribe();
+        }
+        
+        const lobbiesRef = collection(db, 'lobbies');
+        const q = query(
+          lobbiesRef,
+          where('gameType', '==', gameType),
+          where('status', '==', 'waiting'),
+          orderBy('createdAt', 'desc')
+        );
+        
+        // Set up real-time listener for lobby list
+        window.lobbyListUnsubscribe = onSnapshot(q, (snapshot) => {
+          availableLobbies = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Only re-render if we're still on the lobby page
+          if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby') {
+            render();
+          }
+        });
+      } catch (error) {
+        console.error('Error loading lobbies:', error);
+        availableLobbies = [];
+      }
+    }
+
+    async function createLobby(gameType) {
+      try {
+        const lobbyId = Math.random().toString(36).substring(2, 9).toUpperCase();
+        const maxPlayers = 8; // Support up to 8 players for both games
+        
+        const lobbyData = {
+          id: lobbyId,
+          gameType,
+          hostId: currentUser.uid,
+          hostName: currentUser.displayName || 'Player',
+          players: [{
+            id: currentUser.uid,
+            name: currentUser.displayName || 'Player'
+          }],
+          maxPlayers,
+          status: 'waiting',
+          createdAt: Date.now()
+        };
+        
+        console.log('Creating lobby:', lobbyData);
+        await setDoc(doc(db, 'lobbies', lobbyId), lobbyData);
+        console.log('Lobby created successfully');
+        currentLobbyId = lobbyId;
+        
+        // Listen to lobby changes
+        lobbyUnsubscribe = onSnapshot(doc(db, 'lobbies', lobbyId), (snapshot) => {
+          if (snapshot.exists()) {
+            const lobby = snapshot.data();
+            console.log('Lobby update:', lobby);
+            if (lobby.status === 'starting') {
+              // Game is starting, load game data
+              gameData = lobby.gameData;
+              gameId = lobbyId;
+              isMultiplayer = true;
+              currentPage = 'game';
+              
+              // Stop listening to lobby, start listening to game
+              if (lobbyUnsubscribe) lobbyUnsubscribe();
+              subscribeToGame(lobbyId);
+              render();
+            } else {
+              // Update waiting room
+              gameData = lobby;
+              render();
+            }
+          }
+        });
+        
+        gameData = lobbyData;
+        currentPage = 'waiting-room';
+        render();
+      } catch (error) {
+        console.error('Error creating lobby:', error);
+        alert('Failed to create lobby: ' + error.message);
+      }
+    }
+
+    async function joinLobby(lobbyId) {
+      try {
+        console.log('Attempting to join lobby:', lobbyId);
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (!lobbySnap.exists()) {
+          alert('Lobby not found!');
+          return;
+        }
+        
+        const lobby = lobbySnap.data();
+        console.log('Found lobby:', lobby);
+        
+        if (lobby.players.length >= lobby.maxPlayers) {
+          alert('Lobby is full!');
+          return;
+        }
+        
+        // Check if player already in lobby
+        if (lobby.players.some(p => p.id === currentUser.uid)) {
+          console.log('Player already in lobby, entering waiting room');
+          currentLobbyId = lobbyId;
+          gameData = lobby;
+          currentPage = 'waiting-room';
+          
+          // Listen to lobby changes
+          lobbyUnsubscribe = onSnapshot(lobbyRef, (snapshot) => {
+            if (snapshot.exists()) {
+              const updatedLobby = snapshot.data();
+              if (updatedLobby.status === 'starting') {
+                gameData = updatedLobby.gameData;
+                gameId = lobbyId;
+                isMultiplayer = true;
+                currentPage = 'game';
+                
+                if (lobbyUnsubscribe) lobbyUnsubscribe();
+                subscribeToGame(lobbyId);
+                render();
+              } else {
+                gameData = updatedLobby;
+                render();
+              }
+            }
+          });
+          
+          render();
+          return;
+        }
+        
+        // Add player to lobby
+        const updatedPlayers = [...lobby.players, {
+          id: currentUser.uid,
+          name: currentUser.displayName || 'Player'
+        }];
+        
+        console.log('Adding player to lobby, new players:', updatedPlayers);
+        await updateDoc(lobbyRef, {
+          players: updatedPlayers
+        });
+        
+        currentLobbyId = lobbyId;
+        
+        // Listen to lobby changes
+        lobbyUnsubscribe = onSnapshot(lobbyRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const updatedLobby = snapshot.data();
+            console.log('Lobby update after join:', updatedLobby);
+            if (updatedLobby.status === 'starting') {
+              // Game is starting
+              gameData = updatedLobby.gameData;
+              gameId = lobbyId;
+              isMultiplayer = true;
+              currentPage = 'game';
+              
+              if (lobbyUnsubscribe) lobbyUnsubscribe();
+              subscribeToGame(lobbyId);
+              render();
+            } else {
+              gameData = updatedLobby;
+              render();
+            }
+          }
+        });
+        
+        gameData = { ...lobby, players: updatedPlayers };
+        currentPage = 'waiting-room';
+        render();
+      } catch (error) {
+        console.error('Error joining lobby:', error);
+        alert('Failed to join lobby: ' + error.message);
+      }
+    }
+
+    async function leaveLobby() {
+      try {
+        if (!currentLobbyId) return;
+        
+        const lobbyRef = doc(db, 'lobbies', currentLobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (!lobbySnap.exists()) {
+          currentPage = 'menu';
+          render();
+          return;
+        }
+        
+        const lobby = lobbySnap.data();
+        
+        if (lobby.hostId === currentUser.uid) {
+          // Host is leaving, delete lobby
+          await deleteDoc(lobbyRef);
+        } else {
+          // Remove player from lobby
+          const updatedPlayers = lobby.players.filter(p => p.id !== currentUser.uid);
+          await updateDoc(lobbyRef, {
+            players: updatedPlayers
+          });
+        }
+        
+        if (lobbyUnsubscribe) lobbyUnsubscribe();
+        currentLobbyId = null;
+        currentPage = 'menu';
+        render();
+      } catch (error) {
+        console.error('Error leaving lobby:', error);
+        currentPage = 'menu';
+        render();
+      }
+    }
+
+    async function startMultiplayerGame() {
+      try {
+        if (!currentLobbyId || !gameData) return;
+        
+        const lobbyRef = doc(db, 'lobbies', currentLobbyId);
+        let newGameData;
+        
+        if (gameData.gameType === GAME_TYPES.POKER) {
+          newGameData = await initializePokerGame(gameData.players, true);
+        } else {
+          newGameData = await initializeStrategyGame(gameData.players, true);
+        }
+        
+        // Update lobby to starting status with game data
+        await updateDoc(lobbyRef, {
+          status: 'starting',
+          gameData: newGameData
+        });
+        
+        // Create actual game document
+        await setDoc(doc(db, 'games', currentLobbyId), newGameData);
+      } catch (error) {
+        console.error('Error starting game:', error);
+        alert('Failed to start game. Please try again.');
+      }
+    }
+
+    function subscribeToGame(gId) {
+      const gameRef = doc(db, 'games', gId);
+      unsubscribe = onSnapshot(gameRef, (snapshot) => {
+        if (snapshot.exists()) {
+          gameData = snapshot.data();
+          render();
+          
+          // Run AI if needed
+          if (gameData.type === GAME_TYPES.STRATEGY && gameData.turn === 'ai') {
+            runStrategyAI();
+          }
+          if (gameData.type === GAME_TYPES.POKER) {
+            checkPokerRoundAdvance();
+            if (isAITurn()) {
+              runPokerAI();
+            }
+          }
+        }
+      });
+    }
+
+    async function initializePokerGame(players, isMulti) {
+      const deck = generateDeck();
+      const rank = getRank(userStats.totalWins);
+
+      const playerStates = {};
+      players.forEach((p, i) => {
+        playerStates[p.id] = {
+          chips: p.id === currentUser.uid ? userStats.totalChips : 2000,
+          cards: deck.splice(i * 2, 2),
+          contribution: 0,
+          folded: false,
+          isAllIn: false,
+          raisesThisRound: 0
+        };
+      });
+
+      const logs = ['Neural link established.'];
+      if (players.some(p => p.id === currentUser.uid)) {
+        logs.push(`💰 Starting balance: $${userStats.totalChips} chips`);
+        if (rank !== 'Recruit') {
+          logs.push(`🎖️ Current Rank: ${rank}`);
+        }
+      }
+      
+      if (isMulti) {
+        logs.push(`🌐 Multiplayer game - ${players.length} players connected`);
+      }
+
+      const dealerIndex = 0;
+      const smallBlind = 10;
+      const bigBlind = 20;
+      const sbIndex = (dealerIndex + 1) % players.length;
+      const bbIndex = (dealerIndex + 2) % players.length;
+      const sbPlayer = players[sbIndex];
+      const bbPlayer = players[bbIndex];
+      if (playerStates[sbPlayer.id]) {
+        playerStates[sbPlayer.id].contribution = smallBlind;
+        playerStates[sbPlayer.id].chips -= smallBlind;
+      }
+      if (playerStates[bbPlayer.id]) {
+        playerStates[bbPlayer.id].contribution = bigBlind;
+        playerStates[bbPlayer.id].chips -= bigBlind;
+      }
+      logs.push(`Blind cycle: SB $${smallBlind}, BB $${bigBlind}`);
+      
+      return {
+        type: GAME_TYPES.POKER,
+        players,
+        playerStates,
+        deck,
+        communityCards: [],
+        pot: smallBlind + bigBlind,
+        currentBet: bigBlind,
+        round: 'pre-flop',
+        turnIndex: 0,
+        actionStartIndex: (bbIndex + 1) % players.length,
+        expectedActorId: players[(bbIndex + 1) % players.length].id,
+        dealerIndex,
+        status: 'playing',
+        logs
+      };
+    }
+
+    async function initializeStrategyGame(players, isMulti) {
+      const gridSize = 8;
+      const initialGrid = Array(gridSize * gridSize).fill(null).map((_, i) => ({
+        id: i,
+        x: i % gridSize,
+        y: Math.floor(i / gridSize),
+        owner: null,
+        strength: 0
+      }));
+      
+      const rank = getRank(userStats.totalWins);
+      let startingEnergy = 10;
+      
+      if (rank === 'Specialist' || rank === 'Vanguard' || rank === 'Veteran' || rank === 'Master' || rank === 'Legend') {
+        startingEnergy = Math.floor(startingEnergy * 1.1);
+      }
+      if (rank === 'Master' || rank === 'Legend') {
+        startingEnergy = Math.floor(startingEnergy * 1.15);
+      }
+      
+      // Starting positions for up to 8 players (corners and edges)
+      const startPositions = [
+        0,                          // Top-left
+        gridSize - 1,               // Top-right
+        (gridSize * gridSize) - gridSize, // Bottom-left
+        (gridSize * gridSize) - 1,  // Bottom-right
+        Math.floor(gridSize / 2),   // Top-middle
+        (gridSize * gridSize) - Math.floor(gridSize / 2) - 1, // Bottom-middle
+        Math.floor(gridSize / 2) * gridSize, // Left-middle
+        Math.floor(gridSize / 2) * gridSize + gridSize - 1 // Right-middle
+      ];
+      
+      // Assign starting positions to each player
+      const playerEnergy = {};
+      players.forEach((player, index) => {
+        const pos = startPositions[index];
+        initialGrid[pos].owner = player.id;
+        initialGrid[pos].strength = 5;
+        playerEnergy[player.id] = player.id === currentUser.uid ? startingEnergy : 10;
+      });
+      
+      const logs = ['Strategic takeover initiated. Eliminate all opponents to win.'];
+      if (rank !== 'Recruit' && players.some(p => p.id === currentUser.uid)) {
+        logs.push(`🎖️ Rank Bonus: ${rank} - Starting with ${startingEnergy} energy`);
+      }
+      if (isMulti) {
+        logs.push(`🌐 Multiplayer game - ${players.length} players connected`);
+      }
+      
+      return {
+        type: GAME_TYPES.STRATEGY,
+        status: 'playing',
+        currentTurn: players[0].id,
+        players,
+        grid: initialGrid,
+        playerEnergy,
+        gridSize,
+        logs
+      };
+    }
+
+    // Game Logic
+    async function startStrategyGame() {
+      const gridSize = 8;
+      const initialGrid = Array(gridSize * gridSize).fill(null).map((_, i) => ({
+        id: i,
+        x: i % gridSize,
+        y: Math.floor(i / gridSize),
+        owner: null,
+        strength: 0
+      }));
+      
+      // Apply rank bonuses
+      const rank = getRank(userStats.totalWins);
+      let startingEnergy = 10;
+      let extraNodes = 0;
+      
+      // Specialist: +10% starting energy
+      if (rank === 'Specialist' || rank === 'Vanguard' || rank === 'Veteran' || rank === 'Master' || rank === 'Legend') {
+        startingEnergy = Math.floor(startingEnergy * 1.1);
+      }
+      
+      // Master & Legend: Additional +15% energy
+      if (rank === 'Master' || rank === 'Legend') {
+        startingEnergy = Math.floor(startingEnergy * 1.15);
+      }
+      
+      // Veteran, Master, Legend: +2 starting nodes
+      if (rank === 'Veteran' || rank === 'Master' || rank === 'Legend') {
+        extraNodes = 2;
+      }
+      
+      // Set up starting nodes
+      initialGrid[0].owner = 'player';
+      initialGrid[0].strength = 5;
+      initialGrid[(gridSize * gridSize) - 1].owner = 'ai';
+      initialGrid[(gridSize * gridSize) - 1].strength = 5;
+      
+      // Add extra starting nodes based on rank
+      if (extraNodes > 0) {
+        const playerAdjacentIndices = [1, gridSize]; // Adjacent to player start
+        for (let i = 0; i < Math.min(extraNodes, playerAdjacentIndices.length); i++) {
+          const idx = playerAdjacentIndices[i];
+          initialGrid[idx].owner = 'player';
+          initialGrid[idx].strength = 3;
+        }
+      }
+      
+      const logs = ['Strategic takeover initiated. Capture all nodes to win.'];
+      if (rank !== 'Recruit') {
+        logs.push(`🎖️ Rank Bonus: ${rank} - Starting with ${startingEnergy} energy${extraNodes > 0 ? ` and ${extraNodes} extra nodes` : ''}`);
+      }
+      
+      gameData = {
+        type: GAME_TYPES.STRATEGY,
+        status: 'playing',
+        turn: 'player',
+        grid: initialGrid,
+        energy: startingEnergy,
+        aiEnergy: 10,
+        gridSize,
+        logs
+      };
+
+      selectedStrategyNode = null;
+      currentPage = 'game';
+      render();
+    }
+
+    function handleStrategyNodeClick(index) {
+      if (gameData.turn !== 'player' || gameData.status !== 'playing') return;
+      
+      const node = gameData.grid[index];
+      
+      // If clicking on own node and nothing selected, select it
+      if (node.owner === 'player' && selectedStrategyNode === null) {
+        selectedStrategyNode = index;
+        render();
+        return;
+      }
+      
+      // If clicking on own node when another is already selected, try to transfer
+      if (selectedStrategyNode !== null && (node.owner === 'player' || node.owner === currentUser?.uid)) {
+        const selectedNode = gameData.grid[selectedStrategyNode];
+        
+        // Don't transfer to the same node
+        if (index === selectedStrategyNode) {
+          return;
+        }
+        
+        // Can transfer to any owned node as long as source has strength > 1
+        if ((selectedNode.owner === 'player' || selectedNode.owner === currentUser?.uid) && selectedNode.strength > 1) {
+          // Get transfer amount from slider if it exists, otherwise use default (70%)
+          const slider = document.getElementById('transfer-slider');
+          const transferAmount = slider ? parseInt(slider.value) : Math.floor(selectedNode.strength * 0.7);
+          
+          const newGrid = gameData.grid.map(n => {
+            if (n.id === selectedNode.id) {
+              return { ...n, strength: n.strength - transferAmount };
+            }
+            if (n.id === node.id) {
+              return { ...n, strength: n.strength + transferAmount };
+            }
+            return n;
+          });
+          
+          updateGameState({
+            grid: newGrid,
+            logs: [...gameData.logs, `↔️ Transferred ${transferAmount} troops from Node ${selectedNode.id} to Node ${node.id}`]
+          });
+          
+          selectedStrategyNode = index;
+          return;
+        }
+        
+        // If can't transfer, just select the clicked node
+        selectedStrategyNode = index;
+        render();
+        return;
+      }
+      
+      // If we have a selection and clicked an enemy/neutral node, try to attack
+      if (selectedStrategyNode !== null) {
+        const neighbors = getNeighbors(selectedStrategyNode);
+        
+        if (neighbors.includes(index)) {
+          if (gameData.energy < 2) {
+            updateGameState({ logs: [...gameData.logs, "⚠️ Insufficient energy"] });
+            return;
+          }
+          
+          const newGrid = [...gameData.grid];
+          const targetNode = { ...newGrid[index] };
+          const sourceNode = { ...newGrid[selectedStrategyNode] };
+          
+          if (sourceNode.strength > targetNode.strength) {
+            targetNode.owner = 'player';
+            targetNode.strength = 1;
+            sourceNode.strength -= 1;
+            newGrid[index] = targetNode;
+            newGrid[selectedStrategyNode] = sourceNode;
+            
+            // Track node capture
+            updateStats({ nodesSecured: userStats.nodesSecured + 1 });
+            
+            updateGameState({ 
+              grid: newGrid, 
+              energy: gameData.energy - 2, 
+              logs: [...gameData.logs, `📡 Captured [${targetNode.x}, ${targetNode.y}]`] 
+            });
+          } else {
+            targetNode.strength -= 1;
+            sourceNode.strength -= 1;
+            newGrid[index] = targetNode;
+            newGrid[selectedStrategyNode] = sourceNode;
+            
+            updateGameState({ 
+              grid: newGrid, 
+              energy: gameData.energy - 2, 
+              logs: [...gameData.logs, `💥 Attack failed at [${targetNode.x}, ${targetNode.y}]`] 
+            });
+          }
+        }
+      }
+    }
+
+    function getNeighbors(index) {
+      const x = index % gameData.gridSize;
+      const y = Math.floor(index / gameData.gridSize);
+      const neighbors = [];
+      
+      if (x > 0) neighbors.push(index - 1);
+      if (x < gameData.gridSize - 1) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - gameData.gridSize);
+      if (y < gameData.gridSize - 1) neighbors.push(index + gameData.gridSize);
+      
+      return neighbors;
+    }
+
+    function runStrategyAI() {
+      if (gameData.turn === 'ai' && gameData.status === 'playing') {
+        setTimeout(() => {
+          const newGrid = [...gameData.grid];
+          let aiEnergy = gameData.aiEnergy + newGrid.filter(n => n.owner === 'ai').length;
+          const aiNodes = newGrid.filter(n => n.owner === 'ai');
+          const logs = [...gameData.logs];
+          const borderNodes = aiNodes.filter(n => {
+            const ns = getNeighbors(n.id).map(i => newGrid[i]);
+            return ns.some(x => x.owner !== 'ai');
+          });
+          
+          // Phase 1: Aggressive attacks - attack anything we can win or tie
+          const attackCandidates = [];
+          borderNodes.forEach(node => {
+            const neighbors = getNeighbors(node.id).map(idx => newGrid[idx]);
+            neighbors.forEach(t => {
+              if (t.owner !== 'ai') {
+                // Attack if we can win OR if it's close (more aggressive)
+                if (node.strength > t.strength) {
+                  // Prioritize winning attacks
+                  attackCandidates.push({ s: node.id, t: t.id, m: node.strength - t.strength, priority: 2 });
+                } else if (node.strength === t.strength && node.strength > 1) {
+                  // Also consider even-strength attacks (risky but aggressive)
+                  attackCandidates.push({ s: node.id, t: t.id, m: 0, priority: 1 });
+                }
+              }
+            });
+          });
+          
+          // Sort by priority (winning attacks first), then by margin
+          attackCandidates.sort((a, b) => {
+            if (b.priority !== a.priority) return b.priority - a.priority;
+            return b.m - a.m;
+          });
+          
+          // Attack as much as possible - use up to 80% of energy on attacks
+          const maxAttacks = Math.min(attackCandidates.length, Math.floor(aiEnergy * 0.8 / 2));
+          for (let i = 0; i < maxAttacks; i++) {
+            const act = attackCandidates[i];
+            const source = { ...newGrid[act.s] };
+            const target = { ...newGrid[act.t] };
+            if (aiEnergy < 2 || source.strength <= 1) break;
+            
+            if (source.strength > target.strength) {
+              // Winning attack
+              target.owner = 'ai';
+              target.strength = 1;
+              source.strength -= 1;
+              newGrid[act.t] = target;
+              newGrid[act.s] = source;
+              aiEnergy -= 2;
+              logs.push(`🚨 AI captured [${target.x}, ${target.y}]`);
+            } else {
+              // Even-strength attack (mutual damage)
+              target.strength -= 1;
+              source.strength -= 1;
+              newGrid[act.t] = target;
+              newGrid[act.s] = source;
+              aiEnergy -= 2;
+              logs.push(`💥 AI attacked [${target.x}, ${target.y}]`);
+            }
+          }
+          
+          // Phase 2: Reinforce front lines aggressively
+          // Transfer troops from strong rear nodes to weak border nodes
+          const rearNodes = aiNodes.filter(n => {
+            const ns = getNeighbors(n.id).map(i => newGrid[i]);
+            return ns.every(x => x.owner === 'ai'); // All neighbors are AI-owned
+          }).filter(n => n.strength > 2);
+          
+          rearNodes.sort((a, b) => b.strength - a.strength);
+          const weakBorder = borderNodes.filter(n => n.strength < 3).sort((a, b) => a.strength - b.strength);
+          
+          rearNodes.slice(0, 3).forEach(src => {
+            const closest = weakBorder
+              .map(w => ({ w, d: Math.sqrt((w.x - src.x) * (w.x - src.x) + (w.y - src.y) * (w.y - src.y)) }))
+              .sort((a, b) => a.d - b.d)[0];
+            if (closest && newGrid[src.id].strength > 2) {
+              // Transfer most of the strength (aggressive)
+              const amt = Math.floor(newGrid[src.id].strength * 0.75);
+              newGrid[src.id] = { ...newGrid[src.id], strength: newGrid[src.id].strength - amt };
+              newGrid[closest.w.id] = { ...newGrid[closest.w.id], strength: newGrid[closest.w.id].strength + amt };
+              logs.push(`↔️ AI reinforced front line with ${amt} troops`);
+            }
+          });
+          
+          // Phase 3: Spend remaining energy on border fortification
+          while (aiEnergy >= 1 && borderNodes.length > 0) {
+            // Prioritize nodes adjacent to player nodes
+            const threats = borderNodes.filter(n => {
+              const neighbors = getNeighbors(n.id).map(idx => newGrid[idx]);
+              return neighbors.some(nb => nb.owner === 'player');
+            });
+            
+            const fortifyTarget = (threats.length > 0 ? threats : borderNodes)
+              .sort((a, b) => a.strength - b.strength)[0];
+            
+            if (!fortifyTarget) break;
+            newGrid[fortifyTarget.id].strength += 1;
+            aiEnergy -= 1;
+          }
+          
+          let status = 'playing';
+          if (newGrid.filter(n => n.owner === 'player').length === 0) {
+            status = 'gameover';
+            updateStats({ gamesPlayed: userStats.gamesPlayed + 1 });
+          }
+          if (newGrid.filter(n => n.owner === 'ai').length === 0) {
+            status = 'victory';
+            updateStats({ 
+              strategyWins: userStats.strategyWins + 1,
+              totalWins: userStats.totalWins + 1,
+              gamesPlayed: userStats.gamesPlayed + 1
+            });
+          }
+          
+          updateGameState({
+            grid: newGrid,
+            aiEnergy: Math.min(aiEnergy, 50),
+            energy: gameData.energy + newGrid.filter(n => n.owner === 'player').length,
+            turn: 'player',
+            status,
+            logs
+          });
+          
+          selectedStrategyNode = null;
+        }, 1000);
+      }
+    }
+
+    function getNextActivePlayerIndex(fromIndex, players, states) {
+      if (!players || players.length === 0) return 0;
+      const len = players.length;
+      for (let offset = 0; offset < len; offset++) {
+        const idx = (fromIndex + offset) % len;
+        const p = players[idx];
+        const s = states[p.id];
+        if (!s) continue;
+        if (!s.folded && !s.isAllIn && s.chips > 0) {
+          return idx;
+        }
+      }
+      return fromIndex % len;
+    }
+    
+    function enforceEligibleTurn() {
+      if (!gameData || gameData.type !== GAME_TYPES.POKER || gameData.status !== 'playing') return;
+      const actionStart = gameData.actionStartIndex || 0;
+      const idx = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const p = gameData.players[idx];
+      const s = gameData.playerStates?.[p.id];
+      if (p?.isAI && (!s || s.folded || s.isAllIn || s.chips <= 0)) {
+        updateGameState({ turnIndex: gameData.turnIndex + 1 });
+      }
+    }
+    
+    function isAITurn() {
+      if (!gameData || !gameData.players) return false;
+      const actionStart = gameData.actionStartIndex || 0;
+      const idx = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const p = gameData.players[idx];
+      return !!p?.isAI;
+    }
+    
+    async function startPokerGame() {
+      const aiCount = isMultiplayer ? 0 : aiPlayerCount;
+      const aiNames = ['Neural-X','Deep-Logik','Cipher-Flux','Quantum-Node','Omega-Grid','Sigma-Core','Alpha-Net','Zenith-Stack'];
+      const aiPlayers = Array.from({ length: aiCount }, (_, i) => ({
+        id: `ai-${i + 1}`,
+        name: aiNames[i] || `AI-${i + 1}`,
+        isAI: true
+      }));
+      
+      const players = [
+        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false },
+        ...aiPlayers
+      ];
+      
+      const gameDataInit = await initializePokerGame(players, false);
+
+      gameData = gameDataInit;
+      ffActive = false;
+      resolutionStarted = false;
+      currentPage = 'game';
+      render();
+      if (isAITurn()) {
+        setTimeout(() => runPokerAI(), 1000);
+      }
+    }
+
+    function handlePokerAction(type, amt = 0) {
+      if (!gameData || gameData.status !== 'playing' || ffActive || resolutionStarted) return;
+      
+      const actionStart = gameData.actionStartIndex || 0;
+      const currentPlayerIndex = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const currentPlayer = gameData.players[currentPlayerIndex];
+      if (!currentPlayer) return;
+      if (!currentPlayer.isAI && aiActionGuard) return;
+
+      const states = { ...gameData.playerStates };
+      const me = states[currentPlayer.id];
+      let potAdd = 0;
+      let newBet = gameData.currentBet;
+      let logMsg = "";
+      const playerName = currentPlayer.name || currentPlayer.id;
+
+      if (type === 'FOLD') {
+        me.folded = true;
+        logMsg = `${playerName} folded`;
+      } else if (type === 'CALL') {
+        const callNeeded = gameData.currentBet - me.contribution;
+        const call = Math.min(me.chips, callNeeded);
+        me.chips -= call;
+        me.contribution += call;
+        potAdd = call;
+        if (me.chips === 0) me.isAllIn = true;
+        logMsg = callNeeded === 0 ? `${playerName} checked` : `${playerName} called $${call}`;
+      } else if (type === 'RAISE') {
+        const r = Math.min(me.chips, amt || 20);
+        newBet = gameData.currentBet + r;
+        const cost = Math.min(me.chips, newBet - me.contribution);
+        me.chips -= cost;
+        me.contribution += cost;
+        potAdd = cost;
+        if (me.chips === 0) me.isAllIn = true;
+        me.raisesThisRound = (me.raisesThisRound || 0) + 1;
+        logMsg = `${playerName} raised to $${newBet}`;
+      }
+
+      updateGameState({
+        playerStates: states,
+        turnIndex: gameData.turnIndex + 1,
+        expectedActorId: gameData.players[((gameData.actionStartIndex || 0) + gameData.turnIndex + 1) % gameData.players.length].id,
+        pot: gameData.pot + potAdd,
+        currentBet: newBet,
+        logs: [...(gameData.logs || []), `${logMsg}`]
+      });
+
+      setTimeout(() => {
+        checkPokerRoundAdvance();
+        if (isAITurn()) {
+          runPokerAI();
+        }
+      }, 500);
+    }
+
+ 
+    
+    function getAIPersonality(name) {
+      const map = {
+        'Neural-X': { aggression: 0.9, bluff: 0.65, tightness: 0.3 },
+        'Deep-Logik': { aggression: 0.7, bluff: 0.5, tightness: 0.5 },
+        'Cipher-Flux': { aggression: 0.8, bluff: 0.6, tightness: 0.4 },
+        'Quantum-Node': { aggression: 0.6, bluff: 0.55, tightness: 0.6 },
+        'Omega-Grid': { aggression: 0.75, bluff: 0.5, tightness: 0.45 },
+        'Sigma-Core': { aggression: 0.5, bluff: 0.4, tightness: 0.7 },
+        'Alpha-Net': { aggression: 0.85, bluff: 0.7, tightness: 0.35 },
+        'Zenith-Stack': { aggression: 0.7, bluff: 0.55, tightness: 0.5 }
+      };
+      return map[name] || { aggression: 0.6, bluff: 0.5, tightness: 0.5 };
+    }
+    
+    let aiActionGuard = false;
+    
+    function runPokerAI() {
+      if (!gameData || gameData.status !== 'playing' || ffActive || resolutionStarted) return;
+      const actionStart = gameData.actionStartIndex || 0;
+      const idx = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const player = gameData.players[idx];
+      if (!player?.isAI) return;
+      setTimeout(() => {
+        const states = { ...gameData.playerStates };
+        const ps = states[player.id];
+        if (!ps || ps.folded || ps.isAllIn || ps.chips <= 0) {
+          const nextTurn = gameData.turnIndex + 1;
+          const nextActionStart = gameData.actionStartIndex || 0;
+          const nextIdx = (nextActionStart + nextTurn) % gameData.players.length;
+          const nextIsAI = gameData.players[nextIdx]?.isAI;
+          updateGameState({ turnIndex: nextTurn });
+          if (nextIsAI) {
+            setTimeout(() => runPokerAI(), 300);
+          }
+          return;
+        }
+        const callNeeded = Math.max(0, gameData.currentBet - ps.contribution);
+        const canCheck = callNeeded === 0;
+        const handScore = evaluateHand(ps.cards, gameData.communityCards);
+        const stage = gameData.communityCards.length;
+        const personality = getAIPersonality(player.name);
+        
+        let action = 'CALL';
+        let raiseInc = 0;
+        const maxRaises = 2;
+        const canRaise = (ps.raisesThisRound || 0) < maxRaises && ps.chips > 0;
+        
+        // Determine hand strength category
+        let handStrength = 'weak';
+        if (handScore >= 6000) handStrength = 'monster'; // Full house or better
+        else if (handScore >= 4000) handStrength = 'strong'; // Straight or flush
+        else if (handScore >= 2000) handStrength = 'medium'; // Two pair or three of a kind
+        else if (handScore >= 1000) handStrength = 'pair'; // One pair
+        
+        if (canCheck) {
+          // When no one has bet yet, AI should be more aggressive
+          const shouldBet = Math.random() < personality.aggression;
+          const shouldBluff = Math.random() < personality.bluff;
+          
+          if (handStrength === 'monster' && canRaise) {
+            // Always bet with monster hands
+            raiseInc = Math.min(ps.chips, Math.max(30, Math.floor(gameData.pot * 0.5)));
+            action = 'RAISE';
+          } else if (handStrength === 'strong' && canRaise && shouldBet) {
+            // Usually bet with strong hands
+            raiseInc = Math.min(ps.chips, Math.max(25, Math.floor(gameData.pot * 0.4)));
+            action = 'RAISE';
+          } else if (handStrength === 'medium' && canRaise && shouldBet && personality.aggression > 0.6) {
+            // Aggressive players bet medium hands
+            raiseInc = Math.min(ps.chips, Math.max(20, Math.floor(gameData.pot * 0.3)));
+            action = 'RAISE';
+          } else if (handStrength === 'pair' && canRaise && shouldBet && personality.aggression > 0.75) {
+            // Very aggressive players bet pairs
+            raiseInc = Math.min(ps.chips, Math.max(15, Math.floor(gameData.pot * 0.25)));
+            action = 'RAISE';
+          } else if (handStrength === 'weak' && canRaise && shouldBluff && personality.bluff > 0.6) {
+            // Sometimes bluff with weak hands
+            raiseInc = Math.min(ps.chips, Math.max(20, Math.floor(gameData.pot * 0.3)));
+            action = 'RAISE';
+          } else {
+            action = 'CALL'; // Check
+          }
+        } else {
+          // There's a bet to call
+          const potOdds = callNeeded / (gameData.pot + callNeeded);
+          const affordable = callNeeded <= Math.max(30, Math.floor(ps.chips * 0.3));
+          
+          if (handStrength === 'monster') {
+            if (canRaise && Math.random() < personality.aggression) {
+              raiseInc = Math.min(ps.chips - callNeeded, Math.max(callNeeded, Math.floor(gameData.pot * 0.5)));
+              action = 'RAISE';
+            } else {
+              action = 'CALL';
+            }
+          } else if (handStrength === 'strong' && (affordable || potOdds < 0.3)) {
+            if (canRaise && Math.random() < personality.aggression * 0.7) {
+              raiseInc = Math.min(ps.chips - callNeeded, Math.max(callNeeded, Math.floor(gameData.pot * 0.4)));
+              action = 'RAISE';
+            } else {
+              action = 'CALL';
+            }
+          } else if (handStrength === 'medium' && affordable) {
+            action = 'CALL';
+          } else if (handStrength === 'pair' && (affordable || handScore > 1500)) {
+            action = 'CALL';
+          } else if (personality.tightness < 0.5 && affordable) {
+            // Loose players call with weak hands sometimes
+            action = 'CALL';
+          } else {
+            action = 'FOLD';
+          }
+        }
+        
+        if (action === 'RAISE' && raiseInc <= 0) {
+          action = 'CALL';
+        }
+        
+        aiActionGuard = true;
+        handlePokerAction(action, raiseInc);
+        aiActionGuard = false;
+      }, 600);
+    }
+
+    function checkPokerRoundAdvance() {
+      if (!gameData || gameData.status !== 'playing') return;
+      
+      const activePlayers = gameData.players.filter(p => !gameData.playerStates[p.id].folded);
+      const bettingPlayers = activePlayers.filter(p => {
+        const s = gameData.playerStates[p.id];
+        return s.chips > 0 && !s.isAllIn;
+      });
+      
+      if (activePlayers.length === 1) {
+        resolvePokerShowdown(activePlayers[0].id);
+        return;
+      }
+      
+      const actionStart = gameData.actionStartIndex || 0;
+      const currentIdx = (actionStart + gameData.turnIndex) % gameData.players.length;
+      const currentP = gameData.players[currentIdx];
+      const currentS = gameData.playerStates[currentP.id];
+      
+      // If current player is active and can act, wait for them
+      if (!currentP?.isAI && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0) {
+        return;
+      }
+      
+      // If current player (AI or human) is folded/all-in/busted, skip their turn
+      if (currentS && (currentS.folded || currentS.isAllIn || currentS.chips <= 0)) {
+        const nextTurn = gameData.turnIndex + 1;
+        const nextActorId = gameData.players[((gameData.actionStartIndex || 0) + nextTurn) % gameData.players.length].id;
+        updateGameState({ turnIndex: nextTurn, expectedActorId: nextActorId });
+        setTimeout(() => {
+          checkPokerRoundAdvance();
+          if (isAITurn()) runPokerAI();
+        }, 300);
+        return;
+      }
+      
+      // Count how many active players have acted this round
+      let activePlayerTurnCount = 0;
+      let reachedCurrentTurn = false;
+      
+      for (let i = 0; i <= gameData.turnIndex && i < gameData.players.length * 2; i++) {
+        const idx = ((gameData.actionStartIndex || 0) + i) % gameData.players.length;
+        const p = gameData.players[idx];
+        const pState = gameData.playerStates[p.id];
+        
+        // Only count players who are currently active (not folded/all-in/busted)
+        if (!pState.folded && !pState.isAllIn && pState.chips > 0) {
+          activePlayerTurnCount++;
+        }
+        
+        if (i === gameData.turnIndex) {
+          reachedCurrentTurn = true;
+          break;
+        }
+      }
+      
+      // Get count of players who still need to act
+      const playersWhoCanAct = activePlayers.filter(p => {
+        const s = gameData.playerStates[p.id];
+        return !s.isAllIn && s.chips > 0;
+      }).length;
+      
+      const allActed = activePlayerTurnCount >= playersWhoCanAct;
+      const allMatchedBet = activePlayers.every(p => {
+        const state = gameData.playerStates[p.id];
+        return state.folded || state.contribution === gameData.currentBet || state.isAllIn || state.chips === 0;
+      });
+
+      // Check for fast-forward (all-in situation)
+      const anyAllIn = activePlayers.some(p => gameData.playerStates[p.id].isAllIn);
+      if (anyAllIn && allMatchedBet && !ffActive) {
+        ffActive = true;
+        updateGameState({ logs: [...(gameData.logs || []), "⚡ FAST-FORWARD: All-in phase. Dealing..."] });
+        setTimeout(() => runAutoDealer(gameData.round, gameData.deck, gameData.communityCards), 1000);
+        return;
+      }
+
+      if (allActed && allMatchedBet && !ffActive) {
+        advancePokerRound();
+      } else if (gameData.turnIndex >= gameData.players.length * 3 && allMatchedBet && !ffActive) {
+        // Safety check: if we've cycled through 3x the number of players and all bets are matched, force advance
+        console.warn('Forcing round advance due to excessive turn count');
+        advancePokerRound();
+      }
+    }
+
+    function runAutoDealer(currentRound, currentDeck, currentCommunity) {
+      const rounds = { 'pre-flop': 'flop', 'flop': 'turn', 'turn': 'river', 'river': 'showdown' };
+      const next = rounds[currentRound] || 'showdown';
+      
+      if (next === 'showdown') {
+        ffActive = false;
+        resolvePokerShowdown();
+        return;
+      }
+      
+      const counts = { 'flop': 3, 'turn': 1, 'river': 1 };
+      const deck = [...currentDeck];
+      const newCards = deck.splice(0, counts[next]);
+      const communityCards = [...currentCommunity, ...newCards];
+      
+      updateGameState({
+        round: next,
+        communityCards,
+        deck,
+        logs: [...(gameData.logs || []), `⚙️ AUTO-DEAL: ${next.toUpperCase()}`]
+      });
+      
+      setTimeout(() => runAutoDealer(next, deck, communityCards), 1200);
+    }
+
+    function advancePokerRound() {
+      const rounds = { 'pre-flop': 'flop', 'flop': 'turn', 'turn': 'river', 'river': 'showdown' };
+      const next = rounds[gameData.round] || 'showdown';
+
+      if (next === 'showdown') {
+        resolvePokerShowdown();
+        return;
+      }
+
+      const counts = { 'flop': 3, 'turn': 1, 'river': 1 };
+      const deck = [...gameData.deck];
+      const comm = [...gameData.communityCards, ...deck.splice(0, counts[next])];
+      
+      const states = { ...gameData.playerStates };
+      Object.keys(states).forEach(id => {
+        // Preserve folded state, only reset contribution and raises
+        states[id] = {
+          ...states[id],
+          contribution: 0,
+          raisesThisRound: 0
+        };
+      });
+      
+      // Find first non-folded player after dealer to start the round
+      let firstActiveIndex = ((gameData.dealerIndex ?? 0) + 1) % gameData.players.length;
+      let searchCount = 0;
+      while (searchCount < gameData.players.length) {
+        const p = gameData.players[firstActiveIndex];
+        if (!states[p.id].folded && !states[p.id].isAllIn && states[p.id].chips > 0) {
+          break;
+        }
+        firstActiveIndex = (firstActiveIndex + 1) % gameData.players.length;
+        searchCount++;
+      }
+      
+      updateGameState({
+        round: next,
+        communityCards: comm,
+        deck,
+        currentBet: 0,
+        turnIndex: 0,
+        actionStartIndex: firstActiveIndex,
+        expectedActorId: gameData.players[firstActiveIndex].id,
+        playerStates: states,
+        logs: [...(gameData.logs || []), `📍 ${next.toUpperCase()}`]
+      });
+      
+      setTimeout(() => {
+        if (isAITurn()) {
+          runPokerAI();
+        }
+      }, 600);
+    }
+
+    function resolvePokerShowdown(forcedWinner = null) {
+      if (resolutionStarted) return;
+      resolutionStarted = true;
+      
+      updateGameState({ status: 'resolution' });
+
+      setTimeout(() => {
+        let winnerId = forcedWinner;
+        
+        if (!winnerId) {
+          let best = -1;
+          gameData.players.forEach(p => {
+            if (!gameData.playerStates[p.id].folded) {
+              const score = evaluateHand(
+                gameData.playerStates[p.id].cards,
+                gameData.communityCards
+              );
+              if (score > best) {
+                best = score;
+                winnerId = p.id;
+              }
+            }
+          });
+        }
+
+        const states = { ...gameData.playerStates };
+        if (states[winnerId]) {
+          states[winnerId].chips += gameData.pot;
+        }
+
+        const winnerName = gameData.players.find(p => p.id === winnerId)?.name;
+        const winnerHand = evaluateHandName(
+          states[winnerId]?.cards || [],
+          gameData.communityCards || []
+        );
+        
+        // Track poker win if player won
+        if (winnerId === currentUser.uid) {
+          updateStats({ 
+            pokerWins: userStats.pokerWins + 1,
+            totalWins: userStats.totalWins + 1,
+            totalChips: states[winnerId].chips,
+            gamesPlayed: userStats.gamesPlayed + 1
+          });
+        } else {
+          updateStats({ 
+            gamesPlayed: userStats.gamesPlayed + 1,
+            totalChips: states[currentUser.uid]?.chips || userStats.totalChips
+          });
+        }
+        
+        updateGameState({
+          playerStates: states,
+          pot: 0,
+          status: 'resetting',
+          logs: [...(gameData.logs || []), `🏆 Winner: ${winnerName} with ${winnerHand}!`]
+        });
+
+        const newDeck = generateDeck();
+        const resetStates = { ...states };
+        
+        const remainingPlayers = gameData.players.filter(p => resetStates[p.id].chips > 0);
+        
+        if (remainingPlayers.length === 1) {
+          const finalWinner = remainingPlayers[0];
+          
+          // If player lost (not in remaining players), reset their chips to default
+          if (!remainingPlayers.some(p => p.id === currentUser.uid)) {
+            updateStats({
+              totalChips: 2000,
+              gamesPlayed: userStats.gamesPlayed + 1
+            });
+          }
+          
+          updateGameState({
+            status: 'ended',
+            logs: [...(gameData.logs || []), `🎉 GAME OVER! ${finalWinner.name || finalWinner.id} wins the game!`]
+          });
+          resolutionStarted = false;
+          ffActive = false;
+          return;
+        }
+        
+        remainingPlayers.forEach(p => {
+          resetStates[p.id] = {
+            ...resetStates[p.id],
+            folded: false,
+            contribution: 0,
+            isAllIn: false,
+            raisesThisRound: 0,
+            cards: newDeck.splice(0, 2)
+          };
+        });
+
+        const dealerIndex = ((gameData.dealerIndex ?? 0) + 1) % remainingPlayers.length;
+        const smallBlind = 10;
+        const bigBlind = 20;
+        const sbIndex = (dealerIndex + 1) % remainingPlayers.length;
+        const bbIndex = (dealerIndex + 2) % remainingPlayers.length;
+        const sbPlayer = remainingPlayers[sbIndex];
+        const bbPlayer = remainingPlayers[bbIndex];
+        if (resetStates[sbPlayer.id]) {
+          resetStates[sbPlayer.id].contribution = smallBlind;
+          resetStates[sbPlayer.id].chips -= smallBlind;
+        }
+        if (resetStates[bbPlayer.id]) {
+          resetStates[bbPlayer.id].contribution = bigBlind;
+          resetStates[bbPlayer.id].chips -= bigBlind;
+        }
+        updateGameState({
+          players: remainingPlayers,
+          round: 'pre-flop',
+          communityCards: [],
+          deck: newDeck,
+          currentBet: bigBlind,
+          turnIndex: 0,
+          actionStartIndex: (bbIndex + 1) % remainingPlayers.length,
+          expectedActorId: remainingPlayers[(bbIndex + 1) % remainingPlayers.length].id,
+          playerStates: resetStates,
+          dealerIndex,
+          pot: smallBlind + bigBlind,
+          status: 'playing',
+          logs: [...(gameData.logs || []), '🔄 New Hand Started', `Blind cycle: SB $${smallBlind}, BB $${bigBlind}`]
+        });
+        
+        resolutionStarted = false;
+        ffActive = false;
+        
+        setTimeout(() => {
+          if (isAITurn()) {
+            runPokerAI();
+          }
+        }, 1000);
+      }, 1500);
+    }
+
+    async function updateGameState(newData) {
+      if (!currentUser) return;
+      
+      if (isMultiplayer && gameId) {
+        await updateDoc(doc(db, 'games', gameId), newData);
+      } else {
+        gameData = { ...gameData, ...newData };
+        render();
+        
+        // Run AI for strategy game
+        if (gameData.type === GAME_TYPES.STRATEGY && gameData.turn === 'ai') {
+          runStrategyAI();
+        }
+        
+      }
+    }
+
+    // Initialize - Clear any anonymous sessions first
+    (async () => {
+      // Check if there's a persisted user that shouldn't be there
+      const currentAuthUser = auth.currentUser;
+      if (currentAuthUser && (!currentAuthUser.email || currentAuthUser.isAnonymous)) {
+        console.log('Clearing invalid persisted session');
+        await signOut(auth);
+      }
+    })();
+    
+    onAuthStateChanged(auth, async (user) => {
+      // Validate that user has proper email authentication
+      if (user && (!user.email || user.isAnonymous)) {
+        // User is anonymous or doesn't have an email - sign them out
+        console.log('Invalid auth state detected - signing out anonymous/invalid user');
+        await signOut(auth);
+        return;
+      }
+      
+      currentUser = user;
+      if (user) {
+        // Load user stats from database
+        await loadUserStats(user.uid);
+        
+        if (currentPage === 'auth') {
+          currentPage = 'menu';
+        }
+      } else {
+        currentPage = 'auth';
+        gameData = null;
+        // Reset stats to default
+        userStats = {
+          pokerWins: 0,
+          strategyWins: 0,
+          totalWins: 0,
+          nodesSecured: 0,
+          gamesPlayed: 0,
+          totalChips: 2000
+        };
+      }
+      render();
+    });
+
+
+    // Global arrow key handler for strategy game (only added once)
+    document.addEventListener('keydown', (e) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      if (currentPage !== 'game' || !gameData || gameData.type !== GAME_TYPES.STRATEGY) return;
+      if (gameData.turn !== 'player' || gameData.status !== 'playing') return;
+      
+      e.preventDefault();
+      
+      const playerNodes = gameData.grid.filter(n => n.owner === 'player' || n.owner === currentUser?.uid);
+      if (playerNodes.length === 0) return;
+      
+      if (selectedStrategyNode === null) {
+        selectedStrategyNode = 0;
+        const firstNode = playerNodes[0];
+        const nodeIndex = gameData.grid.findIndex(n => n.id === firstNode.id);
+        selectedStrategyNode = nodeIndex;
+        render();
+        return;
+      }
+      
+      const currentNode = gameData.grid[selectedStrategyNode];
+      
+      // Find all nodes (owned and enemy) in the pressed direction
+      let targetNode = null;
+      let minDist = Infinity;
+      
+      gameData.grid.forEach(node => {
+        if (node.id === currentNode.id) return;
+        
+        const dx = node.x - currentNode.x;
+        const dy = node.y - currentNode.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        let isInDirection = false;
+        if (e.key === 'ArrowRight' && dx > 0 && Math.abs(dy) < Math.abs(dx)) isInDirection = true;
+        if (e.key === 'ArrowLeft' && dx < 0 && Math.abs(dy) < Math.abs(dx)) isInDirection = true;
+        if (e.key === 'ArrowDown' && dy > 0 && Math.abs(dx) < Math.abs(dy)) isInDirection = true;
+        if (e.key === 'ArrowUp' && dy < 0 && Math.abs(dx) < Math.abs(dy)) isInDirection = true;
+        
+        if (isInDirection && dist < minDist) {
+          minDist = dist;
+          targetNode = node;
+        }
+      });
+      
+      if (targetNode) {
+        const nodeIndex = gameData.grid.findIndex(n => n.id === targetNode.id);
+        const currentIndex = selectedStrategyNode;
+        const sourceNode = gameData.grid[currentIndex];
+        
+        // Check if target is owned by player - transfer troops
+        if ((targetNode.owner === 'player' || targetNode.owner === currentUser?.uid) && 
+            (sourceNode.owner === 'player' || sourceNode.owner === currentUser?.uid) && 
+            sourceNode.strength > 1) {
+          // Get transfer amount from slider if it exists, otherwise transfer 1
+          const slider = document.getElementById('transfer-slider');
+          const transferAmount = slider ? parseInt(slider.value) : 1;
+          
+          const newGrid = gameData.grid.map(n => {
+            if (n.id === sourceNode.id) return { ...n, strength: n.strength - transferAmount };
+            if (n.id === targetNode.id) return { ...n, strength: n.strength + transferAmount };
+            return n;
+          });
+          updateGameState({
+            grid: newGrid,
+            logs: [...gameData.logs, `➡️ Transferred ${transferAmount} troops from Node ${sourceNode.id} to Node ${targetNode.id}`]
+          });
+          selectedStrategyNode = nodeIndex;
+          render();
+        } 
+        // Check if target is enemy/neutral and is a neighbor - attack
+        else if (targetNode.owner !== 'player' && targetNode.owner !== currentUser?.uid) {
+          const neighbors = getNeighbors(currentIndex);
+          
+          if (neighbors.includes(nodeIndex)) {
+            if (gameData.energy < 2) {
+              updateGameState({ logs: [...gameData.logs, "⚠️ Insufficient energy"] });
+              return;
+            }
+            
+            const newGrid = [...gameData.grid];
+            const targetNodeCopy = { ...newGrid[nodeIndex] };
+            const sourceNodeCopy = { ...newGrid[currentIndex] };
+            
+            if (sourceNodeCopy.strength > targetNodeCopy.strength) {
+              targetNodeCopy.owner = 'player';
+              targetNodeCopy.strength = 1;
+              sourceNodeCopy.strength -= 1;
+              newGrid[nodeIndex] = targetNodeCopy;
+              newGrid[currentIndex] = sourceNodeCopy;
+              
+              // Track node capture
+              updateStats({ nodesSecured: userStats.nodesSecured + 1 });
+              
+              updateGameState({ 
+                grid: newGrid, 
+                energy: gameData.energy - 2, 
+                logs: [...gameData.logs, `📡 Captured [${targetNodeCopy.x}, ${targetNodeCopy.y}]`] 
+              });
+              selectedStrategyNode = nodeIndex;
+              render();
+            } else {
+              targetNodeCopy.strength -= 1;
+              sourceNodeCopy.strength -= 1;
+              newGrid[nodeIndex] = targetNodeCopy;
+              newGrid[currentIndex] = sourceNodeCopy;
+              
+              updateGameState({ 
+                grid: newGrid, 
+                energy: gameData.energy - 2, 
+                logs: [...gameData.logs, `💥 Attack failed at [${targetNodeCopy.x}, ${targetNodeCopy.y}]`] 
+              });
+              render();
+            }
+          } else {
+            // Not a neighbor, just select it
+            selectedStrategyNode = nodeIndex;
+            render();
+          }
+        }
+        else {
+          selectedStrategyNode = nodeIndex;
+          render();
+        }
+      }
+    });
+
+    // Initial render
+    render();
+  </script>
+</head>
+<body class="bg-black">
+  <div id="root"></div>
+</body>
+</html>
