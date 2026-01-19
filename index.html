@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Retro Royal</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23facc15' d='M6 44L14 18l18 14 18-14 8 26H6z'/><rect x='10' y='44' width='44' height='8' fill='%23ca8a04'/></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes spin {
@@ -1466,21 +1465,22 @@
             console.log('Password reset email sent successfully');
             
             resetSuccess.innerHTML = `
-              ✅ Password reset email sent!<br>
-              <br>
-              <strong>📧 Check your inbox</strong><br>
-              <span class="text-xs">The email should arrive in 1-2 minutes.</span><br>
-              <br>
-              <strong>📫 Not there?</strong><br>
-              <span class="text-xs">• Check your <strong>spam/junk folder</strong><br>
-              • Look for email from Firebase Authentication<br>
-              • Add noreply@retro-royal-casino.firebaseapp.com to contacts</span>
+              <div class="flex justify-between items-start gap-3">
+                <div class="flex-1">
+                  ✅ Password reset email sent!<br>
+                  <br>
+                  <strong>📧 Check your inbox</strong><br>
+                  <span class="text-xs">The email should arrive in 1-2 minutes.</span><br>
+                  <br>
+                  <strong>📫 Not there?</strong><br>
+                  <span class="text-xs">• Check your <strong>spam/junk folder</strong><br>
+                  • Look for email from Firebase Authentication<br>
+                  • Add noreply@retro-royal-casino.firebaseapp.com to contacts</span>
+                </div>
+                <button onclick="document.getElementById('forgot-password-modal').classList.add('hidden')" class="text-2xl text-green-400 hover:text-white transition-colors leading-none">&times;</button>
+              </div>
             `;
             resetSuccess.classList.remove('hidden');
-            
-            setTimeout(() => {
-              forgotPasswordModal.classList.add('hidden');
-            }, 3000);
           } catch (err) {
             console.error('Password reset error:', err);
             console.error('Error code:', err.code);
@@ -2970,11 +2970,19 @@
       }
 
       if (allActed && allMatchedBet && !ffActive) {
+        console.log('Advancing round: all acted and bets matched');
         advancePokerRound();
-      } else if (gameData.turnIndex >= gameData.players.length * 3 && allMatchedBet && !ffActive) {
-        // Safety check: if we've cycled through 3x the number of players and all bets are matched, force advance
-        console.warn('Forcing round advance due to excessive turn count');
+      } else if (gameData.turnIndex >= gameData.players.length * 2 && allMatchedBet && !ffActive) {
+        // Safety check: if we've cycled through 2x the number of players and all bets are matched, force advance
+        console.warn('Forcing round advance due to excessive turn count', {
+          turnIndex: gameData.turnIndex,
+          playerCount: gameData.players.length,
+          allMatchedBet,
+          allActed
+        });
         advancePokerRound();
+      } else if (!allActed || !allMatchedBet) {
+        console.log('Waiting for actions:', { allActed, allMatchedBet, turnIndex: gameData.turnIndex });
       }
     }
 
@@ -3388,5 +3396,4 @@
 <body class="bg-black">
   <div id="root"></div>
 </body>
-
 </html>
