@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Retro Royal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23facc15' d='M6 44L14 18l18 14 18-14 8 26H6z'/><rect x='10' y='44' width='44' height='8' fill='%23ca8a04'/></svg>">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes spin {
@@ -81,7 +83,12 @@
     const db = getFirestore(app);
     const appId = 'strategy-poker-hub';
 
-    const GAME_TYPES = { STRATEGY: 'STRATEGY', POKER: 'POKER' };
+    const GAME_TYPES = { 
+      STRATEGY: 'STRATEGY', 
+      POKER: 'POKER',
+      BULLSHIT: 'BULLSHIT',
+      SPADES: 'SPADES'
+    };
     const SUITS = ['♠', '♥', '♦', '♣'];
     const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
@@ -103,6 +110,7 @@
     let userStats = {
       pokerWins: 0,
       strategyWins: 0,
+      bullshitWins: 0,
       totalWins: 0,
       nodesSecured: 0,
       gamesPlayed: 0,
@@ -336,7 +344,7 @@
           attachPokerSetupListeners();
           return;
         }
-        if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby') {
+        if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby') {
           root.innerHTML = renderMainLayout();
           attachLobbyListeners();
         } else if (currentPage === 'waiting-room') {
@@ -353,11 +361,16 @@
               attachStrategyListeners();
             } else if (gameData?.type === GAME_TYPES.POKER) {
               attachPokerListeners();
+            } else if (gameData?.type === GAME_TYPES.BULLSHIT) {
+              attachBullshitListeners();
             }
           }
         }
-      }
-    }
+            }
+          }
+        
+      
+    
 
     function renderMainLayout() {
       return `
@@ -380,7 +393,7 @@
           <main class="max-w-7xl mx-auto p-3 md:p-4">
             ${currentPage === 'profile' ? renderProfilePage() : ''}
             ${currentPage === 'menu' ? renderHomePage() : ''}
-            ${currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' ? renderLobbyPage() : ''}
+            ${currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby' ? renderLobbyPage() : ''}
             ${currentPage === 'waiting-room' ? renderWaitingRoom() : ''}
             ${currentPage === 'game' && gameData ? renderGamePage() : ''}
           </main>
@@ -768,6 +781,34 @@
               <button id="strategy-multi-btn" class="py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-blue-900/30 text-white transition-all">Online Node</button>
             </div>
           </div>
+          
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-yellow-500/50 transition-all group">
+            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-yellow-600/10 transition-colors">
+              🃏
+            </div>
+            <div>
+              <h3 class="text-2xl font-black uppercase italic text-white">Bullshit</h3>
+              <p class="text-slate-400 font-medium mt-1 text-sm">Bluff your way to victory</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="bullshit-solo-btn" class="py-3 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase italic tracking-widest text-[10px] border border-white/5 text-white transition-all">Solo Link</button>
+              <button id="bullshit-multi-btn" class="py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-yellow-900/30 text-white transition-all">Online Node</button>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-green-500/50 transition-all group">
+            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-green-600/10 transition-colors">
+              ♠️
+            </div>
+            <div>
+              <h3 class="text-2xl font-black uppercase italic text-white">Spades</h3>
+              <p class="text-slate-400 font-medium mt-1 text-sm">Partnership trick-taking classic</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="spades-solo-btn" class="py-3 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase italic tracking-widest text-[10px] border border-white/5 text-white transition-all">Solo Link</button>
+              <button id="spades-multi-btn" class="py-3 bg-green-600 hover:bg-green-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-green-900/30 text-white transition-all">Online Node</button>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -826,8 +867,19 @@
     }
 
     function renderLobbyPage() {
-      const selectedGameType = currentPage === 'poker-lobby' ? GAME_TYPES.POKER : GAME_TYPES.STRATEGY;
-      const gameTitle = selectedGameType === GAME_TYPES.POKER ? 'Royal Hold\'em' : 'Global Takeover';
+      let selectedGameType = GAME_TYPES.STRATEGY;
+      let gameTitle = 'Global Takeover';
+      
+      if (currentPage === 'poker-lobby') {
+        selectedGameType = GAME_TYPES.POKER;
+        gameTitle = 'Royal Hold\'em';
+      } else if (currentPage === 'strategy-lobby') {
+        selectedGameType = GAME_TYPES.STRATEGY;
+        gameTitle = 'Global Takeover';
+      } else if (currentPage === 'bullshit-lobby') {
+        selectedGameType = GAME_TYPES.BULLSHIT;
+        gameTitle = 'Bullshit';
+      }
       
       return `
         <div class="max-w-5xl mx-auto py-4">
@@ -914,7 +966,18 @@
       if (!gameData) return '';
       
       const isHost = gameData.hostId === currentUser.uid;
-      const gameTitle = gameData.type === GAME_TYPES.POKER ? 'Royal Hold\'em' : 'Global Takeover';
+      let gameTitle = 'Global Takeover';
+      
+      // In waiting room, gameData is the lobby data which uses 'gameType', not 'type'
+      const gameType = gameData.gameType || gameData.type;
+      
+      if (gameType === GAME_TYPES.POKER) {
+        gameTitle = 'Royal Hold\'em';
+      } else if (gameType === GAME_TYPES.STRATEGY) {
+        gameTitle = 'Global Takeover';
+      } else if (gameType === GAME_TYPES.BULLSHIT) {
+        gameTitle = 'Bullshit';
+      }
       
       return `
         <div class="max-w-4xl mx-auto py-4">
@@ -976,6 +1039,8 @@
         return renderStrategyGame();
       } else if (gameData.type === GAME_TYPES.POKER) {
         return renderPokerGame();
+      } else if (gameData.type === GAME_TYPES.BULLSHIT) {
+        return renderBullshitGame();
       }
       return '<div class="text-white">Loading game...</div>';
     }
@@ -1314,6 +1379,158 @@
           <div class="text-2xl self-center ${['♥','♦'].includes(suit) ? 'text-red-600' : 'text-slate-900'}">${suit}</div>
           <div class="font-black text-xs rotate-180 ${['♥','♦'].includes(suit) ? 'text-red-600' : 'text-slate-900'}">${rank}</div>
         </div>
+      `;
+    }
+    
+    function renderBullshitGame() {
+      const myHand = gameData.hands[currentUser.uid] || [];
+      const isMyTurn = gameData.turn === currentUser.uid;
+      const currentPlayer = gameData.players.find(p => p.id === gameData.turn);
+      const isGameOver = gameData.status === 'ended';
+      
+      // Count how many of the required rank the player has
+      const requiredRank = gameData.currentRank;
+      const matchingCards = myHand.filter(c => c.rank === requiredRank);
+      
+      return `
+        <div class="flex flex-col gap-4 max-w-6xl mx-auto pb-4">
+          <!-- Turn Indicator -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-4 text-center">
+            <p class="text-xs font-black uppercase text-slate-500 mb-1">Current Turn</p>
+            <p class="text-lg font-black uppercase italic ${isMyTurn ? 'text-yellow-400' : 'text-white'}">
+              ${isMyTurn ? '🎯 YOUR TURN' : `⏳ ${currentPlayer?.name || 'Waiting...'}`}
+            </p>
+            <div class="mt-3 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-xl">
+              <p class="text-sm text-slate-400">Must Play: <span class="text-white font-black text-2xl">${requiredRank}</span></p>
+              ${isMyTurn ? `<p class="text-xs text-yellow-400 mt-1">You have ${matchingCards.length} ${requiredRank}${matchingCards.length !== 1 ? 's' : ''}</p>` : ''}
+            </div>
+          </div>
+          
+          <!-- Game Area -->
+          <div class="grid lg:grid-cols-4 gap-4">
+            <!-- Main Play Area -->
+            <div class="lg:col-span-3 space-y-4">
+              <!-- Pile & Last Claim -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6">
+                <div class="grid md:grid-cols-2 gap-6">
+                  <div class="text-center">
+                    <p class="text-xs font-black uppercase text-slate-500 mb-3">Pile</p>
+                    <div class="bg-black/40 rounded-xl p-6 border border-white/5">
+                      <div class="text-5xl mb-2">🃏</div>
+                      <p class="text-2xl font-black text-white">${gameData.pile.length}</p>
+                      <p class="text-xs text-slate-500 mt-1">cards</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p class="text-xs font-black uppercase text-slate-500 mb-3">Last Claim</p>
+                    <div class="bg-black/40 rounded-xl p-4 border border-white/5 min-h-[160px] flex flex-col justify-between">
+                      ${gameData.lastClaim ? `
+                        <div>
+                          <p class="text-white font-bold mb-2">${gameData.lastClaim.playerName}</p>
+                          <p class="text-slate-400 text-sm mb-1">Claimed: <span class="text-yellow-400 font-black text-lg">${gameData.lastClaim.count} ${gameData.lastClaim.rank}${gameData.lastClaim.count > 1 ? 's' : ''}</span></p>
+                          ${gameData.canCallBS ? `
+                            <p class="text-red-400 text-xs mt-2 font-black" id="bs-timer-display">⏱️ 3s to call BS!</p>
+                          ` : ''}
+                        </div>
+                        ${gameData.canCallBS && !isGameOver ? `
+                          <button id="call-bs-btn" class="w-full py-3 bg-red-600 hover:bg-red-500 rounded-xl font-black uppercase text-sm text-white transition-all shadow-lg pulse-bs">
+                            🚨 Call Bullshit!
+                          </button>
+                        ` : ''}
+                      ` : '<p class="text-slate-500 text-sm">No claims yet</p>'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Player's Hand -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                  <p class="text-sm font-black uppercase text-slate-400">Your Hand (${myHand.length} cards)</p>
+                  ${isMyTurn && !isGameOver ? `
+                    <button id="play-selected-btn" disabled class="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-black uppercase text-sm text-white transition-all">
+                      Play <span id="selected-count">0</span> Cards
+                    </button>
+                  ` : ''}
+                </div>
+                
+                <div class="flex gap-2 flex-wrap justify-center min-h-[120px] bg-black/20 rounded-xl p-4">
+                  ${myHand.map((card, index) => `
+                    <div class="bullshit-card relative cursor-pointer transition-transform hover:scale-105" data-card-index="${index}" data-rank="${card.rank}" data-suit="${card.suit}">
+                      <div class="w-14 h-20 bg-white rounded-lg flex flex-col justify-between p-1.5 border-2 border-slate-200 shadow-xl transition-all">
+                        <div class="font-black text-xs ${['♥','♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}">${card.rank}</div>
+                        <div class="text-2xl self-center ${['♥','♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}">${card.suit}</div>
+                        <div class="font-black text-xs rotate-180 ${['♥','♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}">${card.rank}</div>
+                      </div>
+                      <div class="selected-indicator hidden absolute -top-2 -right-2 w-6 h-6 bg-yellow-500 rounded-full border-2 border-white flex items-center justify-center text-xs font-black">✓</div>
+                    </div>
+                  `).join('')}
+                  ${myHand.length === 0 ? '<p class="text-slate-600 text-center w-full py-8">No cards</p>' : ''}
+                </div>
+                
+                ${isMyTurn && myHand.length > 0 && !isGameOver ? `
+                  <div class="mt-4 p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl">
+                    <p class="text-xs text-blue-400 text-center">💡 Click cards to select them, then click "Play X Cards" to claim you're playing ${requiredRank}s</p>
+                  </div>
+                ` : ''}
+              </div>
+              
+              ${isGameOver ? `
+                <div class="bg-green-600/20 border border-green-500/50 rounded-2xl p-6 text-center">
+                  <p class="text-3xl mb-2">🎉</p>
+                  <p class="text-2xl font-black text-white uppercase">Game Over!</p>
+                  <p class="text-green-400 mt-2">${gameData.players.find(p => p.id === gameData.winner)?.name || 'Someone'} wins!</p>
+                  <button id="return-menu-btn" class="mt-4 px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase text-white transition-all">
+                    Return to Menu
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+            
+            <!-- Sidebar - Players & Log -->
+            <div class="space-y-4">
+              <!-- Players -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-slate-500 mb-3">Players</p>
+                <div class="space-y-2">
+                  ${gameData.players.map(p => {
+                    const hand = gameData.hands[p.id] || [];
+                    const isCurrent = p.id === gameData.turn;
+                    return `
+                      <div class="p-3 rounded-xl ${isCurrent ? 'bg-yellow-600/20 border border-yellow-500/30' : 'bg-black/20 border border-white/5'}">
+                        <div class="flex justify-between items-center">
+                          <p class="font-bold text-white text-sm ${isCurrent ? 'text-yellow-400' : ''}">${p.name}</p>
+                          <p class="text-xs text-slate-400">${hand.length} cards</p>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+              
+              <!-- Game Log -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-slate-500 mb-3">Game Log</p>
+                <div class="space-y-1 max-h-60 overflow-y-auto text-xs font-mono">
+                  ${(gameData.logs || []).slice(-10).map(log => `
+                    <div class="p-2 bg-black/20 rounded border-l-2 border-yellow-500/30 text-slate-400">${log}</div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <style>
+          @keyframes pulse-bs {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+          }
+          .pulse-bs {
+            animation: pulse-bs 0.8s infinite;
+          }
+        </style>
       `;
     }
 
@@ -1691,6 +1908,17 @@
         await loadLobbies(GAME_TYPES.STRATEGY);
         render();
       });
+      
+      document.getElementById('bullshit-solo-btn').addEventListener('click', () => {
+        isMultiplayer = false;
+        startBullshitGame();
+      });
+      
+      document.getElementById('bullshit-multi-btn').addEventListener('click', async () => {
+        currentPage = 'bullshit-lobby';
+        await loadLobbies(GAME_TYPES.BULLSHIT);
+        render();
+      });
     }
     
     function attachPokerSetupListeners() {
@@ -1737,7 +1965,16 @@
       });
 
       document.getElementById('create-lobby-btn')?.addEventListener('click', async () => {
-        const gameType = currentPage === 'poker-lobby' ? GAME_TYPES.POKER : GAME_TYPES.STRATEGY;
+        let gameType = GAME_TYPES.STRATEGY;
+        
+        if (currentPage === 'poker-lobby') {
+          gameType = GAME_TYPES.POKER;
+        } else if (currentPage === 'strategy-lobby') {
+          gameType = GAME_TYPES.STRATEGY;
+        } else if (currentPage === 'bullshit-lobby') {
+          gameType = GAME_TYPES.BULLSHIT;
+        }
+        
         await createLobby(gameType);
       });
 
@@ -1947,6 +2184,111 @@
         logContainer.scrollTop = logContainer.scrollHeight;
       }
     }
+    
+    function attachBullshitListeners() {
+      document.getElementById('home-btn').addEventListener('click', () => {
+        currentPage = 'menu';
+        gameData = null;
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+      
+      // BS Timer countdown
+      if (gameData.canCallBS && gameData.bsTimer) {
+        const updateTimer = () => {
+          if (!gameData.canCallBS) return; // Stop if BS window closed
+          
+          const elapsed = Date.now() - gameData.bsTimer;
+          const remaining = Math.max(0, 3 - Math.floor(elapsed / 1000));
+          const display = document.getElementById('bs-timer-display');
+          
+          if (display) {
+            display.textContent = `⏱️ ${remaining}s to call BS!`;
+            if (remaining > 0 && gameData.canCallBS) {
+              setTimeout(() => updateTimer(), 100);
+            }
+          }
+        };
+        updateTimer();
+      }
+      
+      // Card selection
+      let selectedCardIndices = [];
+      
+      document.querySelectorAll('.bullshit-card').forEach(cardEl => {
+        cardEl.addEventListener('click', () => {
+          // Only allow card selection on your turn when BS window is closed
+          if (gameData.turn !== currentUser.uid || gameData.canCallBS) return;
+          
+          const index = parseInt(cardEl.dataset.cardIndex);
+          const cardDiv = cardEl.querySelector('div');
+          const indicator = cardEl.querySelector('.selected-indicator');
+          
+          if (selectedCardIndices.includes(index)) {
+            // Deselect
+            selectedCardIndices = selectedCardIndices.filter(i => i !== index);
+            cardDiv.classList.remove('border-yellow-500', 'shadow-lg', 'shadow-yellow-500/50');
+            cardDiv.classList.add('border-slate-200');
+            indicator.classList.add('hidden');
+          } else {
+            // Select
+            selectedCardIndices.push(index);
+            cardDiv.classList.remove('border-slate-200');
+            cardDiv.classList.add('border-yellow-500', 'shadow-lg', 'shadow-yellow-500/50');
+            indicator.classList.remove('hidden');
+          }
+          
+          // Update button
+          const playBtn = document.getElementById('play-selected-btn');
+          const countSpan = document.getElementById('selected-count');
+          if (playBtn && countSpan) {
+            countSpan.textContent = selectedCardIndices.length;
+            playBtn.disabled = selectedCardIndices.length === 0;
+          }
+        });
+      });
+      
+      // Play selected cards button
+      const playSelectedBtn = document.getElementById('play-selected-btn');
+      if (playSelectedBtn) {
+        playSelectedBtn.addEventListener('click', () => {
+          if (selectedCardIndices.length === 0) return;
+          
+          const myHand = gameData.hands[currentUser.uid] || [];
+          const cardsToPlay = selectedCardIndices.map(i => myHand[i]);
+          const claimedRank = gameData.currentRank;
+          
+          handleBullshitPlay(cardsToPlay, claimedRank);
+          selectedCardIndices = [];
+        });
+      }
+      
+      // Call BS button
+      const callBSBtn = document.getElementById('call-bs-btn');
+      if (callBSBtn) {
+        callBSBtn.addEventListener('click', () => {
+          handleBullshitCall();
+        });
+      }
+      
+      // Return to menu button
+      const returnMenuBtn = document.getElementById('return-menu-btn');
+      if (returnMenuBtn) {
+        returnMenuBtn.addEventListener('click', () => {
+          currentPage = 'menu';
+          gameData = null;
+          render();
+        });
+      }
+    }
 
     // Multiplayer Lobby Functions
     async function loadLobbies(gameType) {
@@ -1985,7 +2327,12 @@
     async function createLobby(gameType) {
       try {
         const lobbyId = Math.random().toString(36).substring(2, 9).toUpperCase();
-        const maxPlayers = 8; // Support up to 8 players for both games
+        
+        // Set max players based on game type
+        let maxPlayers = 8; // Default for Poker and Strategy
+        if (gameType === GAME_TYPES.BULLSHIT) {
+          maxPlayers = 4; // Bullshit works best with 2-4 players
+        }
         
         const lobbyData = {
           id: lobbyId,
@@ -2179,8 +2526,10 @@
         
         if (gameData.gameType === GAME_TYPES.POKER) {
           newGameData = await initializePokerGame(gameData.players, true);
-        } else {
+        } else if (gameData.gameType === GAME_TYPES.STRATEGY) {
           newGameData = await initializeStrategyGame(gameData.players, true);
+        } else if (gameData.gameType === GAME_TYPES.BULLSHIT) {
+          newGameData = await initializeBullshitGame(gameData.players, true);
         }
         
         // Update lobby to starting status with game data
@@ -2212,6 +2561,42 @@
             checkPokerRoundAdvance();
             if (isAITurn()) {
               runPokerAI();
+            }
+          }
+          if (gameData.type === GAME_TYPES.BULLSHIT) {
+            // Handle BS timer in multiplayer - only schedule once per claim
+            if (gameData.canCallBS && gameData.bsTimer) {
+              const elapsed = Date.now() - gameData.bsTimer;
+              const remaining = 3000 - elapsed;
+              
+              // Only schedule if we haven't already and timer hasn't expired
+              if (remaining > 0 && !window.bsTimerScheduled) {
+                window.bsTimerScheduled = true;
+                
+                // Schedule auto-close of BS window
+                setTimeout(() => {
+                  // Only close if still the same claim (check timestamp)
+                  if (gameData.canCallBS && gameData.bsTimer && gameId) {
+                    const currentElapsed = Date.now() - gameData.bsTimer;
+                    if (currentElapsed >= 3000) {
+                      updateDoc(doc(db, 'games', gameId), { canCallBS: false }).then(() => {
+                        window.bsTimerScheduled = false;
+                      }).catch(err => {
+                        console.error('Error closing BS window:', err);
+                        window.bsTimerScheduled = false;
+                      });
+                    }
+                  }
+                }, remaining);
+              }
+            } else {
+              // Clear the flag when BS window is closed
+              window.bsTimerScheduled = false;
+            }
+            
+            // Run AI if single player
+            if (!gameData.isMultiplayer && gameData.turn !== currentUser.uid) {
+              runBullshitAI();
             }
           }
         }
@@ -2408,6 +2793,341 @@
       selectedStrategyNode = null;
       currentPage = 'game';
       render();
+    }
+
+    // ========================================
+    // BULLSHIT GAME
+    // ========================================
+    
+    let bullshitAIPlayerCount = 3;
+    
+    async function initializeBullshitGame(players, isMulti) {
+      const deck = generateDeck();
+      const hands = {};
+      const cardsPerPlayer = Math.floor(52 / players.length);
+      
+      // Deal cards
+      players.forEach((player, i) => {
+        hands[player.id] = deck.splice(0, cardsPerPlayer);
+      });
+      
+      // Remaining cards go in the pile (shouldn't happen with standard player counts)
+      const pile = deck;
+      
+      return {
+        type: GAME_TYPES.BULLSHIT,
+        players,
+        hands,
+        pile,
+        currentRank: '2', // Start with 2s
+        currentPlayerIndex: 0,
+        lastClaim: null, // { playerId, rank, count, cards }
+        status: 'playing',
+        logs: ['Game started! First player must play 2s.'],
+        turn: players[0].id,
+        isMultiplayer: isMulti
+      };
+    }
+    
+    async function startBullshitGame() {
+      const aiCount = isMultiplayer ? 0 : bullshitAIPlayerCount;
+      const aiNames = ['Bluff-Bot', 'Truth-Teller', 'Wild-Card', 'Poker-Face', 'Lucky-Liar'];
+      const aiPlayers = Array.from({ length: aiCount }, (_, i) => ({
+        id: `ai-${i + 1}`,
+        name: aiNames[i] || `AI-${i + 1}`,
+        isAI: true
+      }));
+      
+      const players = [
+        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false },
+        ...aiPlayers
+      ];
+      
+      const gameDataInit = await initializeBullshitGame(players, false);
+      gameData = gameDataInit;
+      currentPage = 'game';
+      render();
+      
+      // Start AI if it's their turn
+      if (gameData.turn !== currentUser.uid) {
+        setTimeout(() => runBullshitAI(), 1500);
+      }
+    }
+    
+    function getBullshitNextRank(currentRank) {
+      const rankOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      const currentIndex = rankOrder.indexOf(currentRank);
+      return rankOrder[(currentIndex + 1) % rankOrder.length];
+    }
+    
+    function handleBullshitPlay(selectedCards, claimedRank) {
+      if (!gameData || gameData.status !== 'playing') return;
+      if (gameData.turn !== currentUser.uid) return;
+      if (!selectedCards || selectedCards.length === 0) return;
+      
+      const playerHand = gameData.hands[currentUser.uid];
+      
+      // Remove played cards from hand
+      const newHands = { ...gameData.hands };
+      newHands[currentUser.uid] = playerHand.filter(card => 
+        !selectedCards.some(sc => sc.suit === card.suit && sc.rank === card.rank)
+      );
+      
+      // Add cards to pile
+      const newPile = [...gameData.pile, ...selectedCards];
+      
+      // Record the claim
+      const claim = {
+        playerId: currentUser.uid,
+        playerName: currentUser.displayName || 'You',
+        rank: claimedRank,
+        count: selectedCards.length,
+        cards: selectedCards,
+        timestamp: Date.now()
+      };
+      
+      // Move to next player
+      const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+      const nextPlayer = gameData.players[nextPlayerIndex];
+      
+      const updates = {
+        hands: newHands,
+        pile: newPile,
+        lastClaim: claim,
+        currentPlayerIndex: nextPlayerIndex,
+        turn: nextPlayer.id,
+        currentRank: getBullshitNextRank(claimedRank),
+        logs: [...gameData.logs, `${claim.playerName} claimed ${claim.count} ${claimedRank}${claim.count > 1 ? 's' : ''}`],
+        canCallBS: true,
+        bsTimer: Date.now()
+      };
+      
+      // Check if player won
+      if (newHands[currentUser.uid].length === 0) {
+        updates.status = 'ended';
+        updates.winner = currentUser.uid;
+        updates.canCallBS = false;
+        updates.logs = [...updates.logs, `🎉 ${currentUser.displayName || 'You'} won!`];
+        
+        if (!gameData.isMultiplayer) {
+          updateStats({
+            bullshitWins: (userStats.bullshitWins || 0) + 1,
+            totalWins: userStats.totalWins + 1,
+            gamesPlayed: userStats.gamesPlayed + 1
+          });
+        }
+      }
+      
+      // Sync with Firebase if multiplayer, otherwise just update local state
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        // Give 3 seconds for anyone to call BS before AI continues
+        if (!updates.status || updates.status === 'playing') {
+          setTimeout(() => {
+            if (gameData.canCallBS && gameData.turn !== currentUser.uid) {
+              updateGameState({ canCallBS: false });
+              setTimeout(() => runBullshitAI(), 500);
+            }
+          }, 3000);
+        }
+      }
+    }
+    
+    function handleBullshitCall() {
+      if (!gameData || !gameData.lastClaim || !gameData.canCallBS) return;
+      
+      const claim = gameData.lastClaim;
+      const actualRanks = claim.cards.map(c => c.rank);
+      const wasLying = !actualRanks.every(r => r === claim.rank);
+      
+      const callerName = currentUser.displayName || 'You';
+      const callerId = currentUser.uid;
+      
+      // Show what was actually played
+      const actualCardsText = claim.cards.map(c => `${c.rank}${c.suit}`).join(', ');
+      
+      let newHands = { ...gameData.hands };
+      let logs = [...gameData.logs];
+      
+      if (wasLying) {
+        // Caller was right! Liar takes the pile
+        logs.push(`🚨 ${callerName} called BS!`);
+        logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
+        logs.push(`${claim.playerName} was LYING! Takes ${gameData.pile.length} cards.`);
+        newHands[claim.playerId] = [...newHands[claim.playerId], ...gameData.pile];
+      } else {
+        // Caller was wrong! Caller takes the pile
+        logs.push(`🚨 ${callerName} called BS!`);
+        logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
+        logs.push(`${claim.playerName} was telling the TRUTH! ${callerName} takes ${gameData.pile.length} cards.`);
+        newHands[callerId] = [...newHands[callerId], ...gameData.pile];
+      }
+      
+      // Find who takes next turn (person after the one who took pile)
+      const penalizedId = wasLying ? claim.playerId : callerId;
+      const penalizedIndex = gameData.players.findIndex(p => p.id === penalizedId);
+      const nextPlayerIndex = (penalizedIndex + 1) % gameData.players.length;
+      const nextPlayer = gameData.players[nextPlayerIndex];
+      
+      const updates = {
+        hands: newHands,
+        pile: [],
+        lastClaim: null,
+        currentPlayerIndex: nextPlayerIndex,
+        turn: nextPlayer.id,
+        logs,
+        canCallBS: false
+      };
+      
+      // Sync with Firebase if multiplayer, otherwise just update local state
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        setTimeout(() => {
+          if (gameData.turn !== currentUser.uid) {
+            runBullshitAI();
+          }
+        }, 1000);
+      }
+    }
+    
+    function runBullshitAI() {
+      if (!gameData || gameData.status !== 'playing') return;
+      if (gameData.turn === currentUser.uid) return;
+      
+      const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+      if (!currentPlayer || !currentPlayer.isAI) return;
+      
+      setTimeout(() => {
+        const aiHand = gameData.hands[currentPlayer.id];
+        const requiredRank = gameData.currentRank;
+        
+        // If there's a lastClaim and BS can still be called, AI might call BS
+        if (gameData.lastClaim && gameData.canCallBS && Math.random() < 0.25) {
+          const claim = gameData.lastClaim;
+          const suspicionLevel = claim.count >= 3 ? 0.6 : 0.3;
+          
+          if (Math.random() < suspicionLevel) {
+            // AI calls BS
+            const wasLying = !claim.cards.every(c => c.rank === claim.rank);
+            const actualCardsText = claim.cards.map(c => `${c.rank}${c.suit}`).join(', ');
+            
+            let newHands = { ...gameData.hands };
+            let logs = [...gameData.logs];
+            
+            if (wasLying) {
+              logs.push(`🚨 ${currentPlayer.name} called BS!`);
+              logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
+              logs.push(`${claim.playerName} was LYING! Takes ${gameData.pile.length} cards.`);
+              newHands[claim.playerId] = [...newHands[claim.playerId], ...gameData.pile];
+            } else {
+              logs.push(`🚨 ${currentPlayer.name} called BS!`);
+              logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
+              logs.push(`${claim.playerName} was telling the TRUTH! ${currentPlayer.name} takes ${gameData.pile.length} cards.`);
+              newHands[currentPlayer.id] = [...newHands[currentPlayer.id], ...gameData.pile];
+            }
+            
+            const penalizedId = wasLying ? claim.playerId : currentPlayer.id;
+            const penalizedIndex = gameData.players.findIndex(p => p.id === penalizedId);
+            const nextPlayerIndex = (penalizedIndex + 1) % gameData.players.length;
+            const nextPlayer = gameData.players[nextPlayerIndex];
+            
+            updateGameState({
+              hands: newHands,
+              pile: [],
+              lastClaim: null,
+              currentPlayerIndex: nextPlayerIndex,
+              turn: nextPlayer.id,
+              logs,
+              canCallBS: false
+            });
+            
+            setTimeout(() => runBullshitAI(), 1000);
+            return;
+          }
+        }
+        
+        // Don't play if BS can still be called (wait for window to close)
+        if (gameData.canCallBS) {
+          setTimeout(() => runBullshitAI(), 500);
+          return;
+        }
+        
+        // AI plays cards
+        const matchingCards = aiHand.filter(c => c.rank === requiredRank);
+        let cardsToPlay = [];
+        
+        if (matchingCards.length > 0) {
+          // Play honestly (most of the time)
+          const playCount = Math.min(matchingCards.length, Math.random() < 0.7 ? 1 : 2);
+          cardsToPlay = matchingCards.slice(0, playCount);
+        } else {
+          // Must lie
+          const playCount = Math.random() < 0.6 ? 1 : 2;
+          cardsToPlay = aiHand.slice(0, Math.min(playCount, aiHand.length));
+        }
+        
+        const newHands = { ...gameData.hands };
+        newHands[currentPlayer.id] = aiHand.filter(card => 
+          !cardsToPlay.some(pc => pc.suit === card.suit && pc.rank === card.rank)
+        );
+        
+        const newPile = [...gameData.pile, ...cardsToPlay];
+        const claim = {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          rank: requiredRank,
+          count: cardsToPlay.length,
+          cards: cardsToPlay,
+          timestamp: Date.now()
+        };
+        
+        const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+        const nextPlayer = gameData.players[nextPlayerIndex];
+        
+        updateGameState({
+          hands: newHands,
+          pile: newPile,
+          lastClaim: claim,
+          currentPlayerIndex: nextPlayerIndex,
+          turn: nextPlayer.id,
+          currentRank: getBullshitNextRank(requiredRank),
+          logs: [...gameData.logs, `${claim.playerName} claimed ${claim.count} ${requiredRank}${claim.count > 1 ? 's' : ''}`],
+          canCallBS: true,
+          bsTimer: Date.now()
+        });
+        
+        // Check if AI won
+        if (newHands[currentPlayer.id].length === 0) {
+          updateGameState({
+            status: 'ended',
+            winner: currentPlayer.id,
+            canCallBS: false,
+            logs: [...gameData.logs, `🎉 ${currentPlayer.name} won!`]
+          });
+          updateStats({
+            gamesPlayed: userStats.gamesPlayed + 1
+          });
+          return;
+        }
+        
+        // Give 3 seconds for player to call BS
+        setTimeout(() => {
+          if (gameData.canCallBS) {
+            updateGameState({ canCallBS: false });
+            setTimeout(() => runBullshitAI(), 500);
+          }
+        }, 3000);
+      }, 1000);
     }
 
     function handleStrategyNodeClick(index) {
