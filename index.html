@@ -111,6 +111,7 @@
       pokerWins: 0,
       strategyWins: 0,
       bullshitWins: 0,
+      spadesWins: 0,
       totalWins: 0,
       nodesSecured: 0,
       gamesPlayed: 0,
@@ -344,7 +345,7 @@
           attachPokerSetupListeners();
           return;
         }
-        if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby') {
+        if (currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby' || currentPage === 'spades-lobby') {
           root.innerHTML = renderMainLayout();
           attachLobbyListeners();
         } else if (currentPage === 'waiting-room') {
@@ -363,6 +364,8 @@
               attachPokerListeners();
             } else if (gameData?.type === GAME_TYPES.BULLSHIT) {
               attachBullshitListeners();
+            } else if (gameData?.type === GAME_TYPES.SPADES) {
+              attachSpadesListeners();
             }
           }
         }
@@ -393,7 +396,7 @@
           <main class="max-w-7xl mx-auto p-3 md:p-4">
             ${currentPage === 'profile' ? renderProfilePage() : ''}
             ${currentPage === 'menu' ? renderHomePage() : ''}
-            ${currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby' ? renderLobbyPage() : ''}
+            ${currentPage === 'poker-lobby' || currentPage === 'strategy-lobby' || currentPage === 'bullshit-lobby' || currentPage === 'spades-lobby' ? renderLobbyPage() : ''}
             ${currentPage === 'waiting-room' ? renderWaitingRoom() : ''}
             ${currentPage === 'game' && gameData ? renderGamePage() : ''}
           </main>
@@ -768,8 +771,8 @@
             </div>
           </div>
           
-          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-blue-500/50 transition-all group">
-            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-blue-600/10 transition-colors">
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-6 hover:border-red-500/50 transition-all group">
+            <div class="p-3 bg-white/5 rounded-xl w-fit group-hover:bg-red-600/10 transition-colors">
               ${icons.globe}
             </div>
             <div>
@@ -778,7 +781,7 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
               <button id="strategy-solo-btn" class="py-3 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase italic tracking-widest text-[10px] border border-white/5 text-white transition-all">Solo Link</button>
-              <button id="strategy-multi-btn" class="py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-blue-900/30 text-white transition-all">Online Node</button>
+              <button id="strategy-multi-btn" class="py-3 bg-red-600 hover:bg-red-500 rounded-xl font-black uppercase italic tracking-widest text-[10px] shadow-xl shadow-red-900/30 text-white transition-all">Online Node</button>
             </div>
           </div>
           
@@ -787,7 +790,7 @@
               🃏
             </div>
             <div>
-              <h3 class="text-2xl font-black uppercase italic text-white">Bullshit</h3>
+              <h3 class="text-2xl font-black uppercase italic text-white">Bs</h3>
               <p class="text-slate-400 font-medium mt-1 text-sm">Bluff your way to victory</p>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -879,6 +882,9 @@
       } else if (currentPage === 'bullshit-lobby') {
         selectedGameType = GAME_TYPES.BULLSHIT;
         gameTitle = 'Bullshit';
+      } else if (currentPage === 'spades-lobby') {
+        selectedGameType = GAME_TYPES.SPADES;
+        gameTitle = 'Spades';
       }
       
       return `
@@ -977,6 +983,8 @@
         gameTitle = 'Global Takeover';
       } else if (gameType === GAME_TYPES.BULLSHIT) {
         gameTitle = 'Bullshit';
+      } else if (gameType === GAME_TYPES.SPADES) {
+        gameTitle = 'Spades';
       }
       
       return `
@@ -998,8 +1006,9 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               ${gameData.players.map(player => `
                 <div class="p-6 bg-black/40 border border-white/10 rounded-2xl text-center">
-                  <div class="w-16 h-16 bg-blue-600/20 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl">
-                    ${player.id === gameData.hostId ? '👑' : '👤'}
+                  <div class="w-16 h-16 bg-blue-600/20 rounded-full mx-auto mb-3 flex items-center justify-center text-3xl relative">
+                    ${player.avatar || '👤'}
+                    ${player.id === gameData.hostId ? '<div class="absolute -top-1 -right-1 text-xl">👑</div>' : ''}
                   </div>
                   <p class="font-black uppercase text-white text-sm truncate">${player.name}</p>
                   <p class="text-[9px] text-slate-500 uppercase mt-1">${player.id === gameData.hostId ? 'Host' : 'Player'}</p>
@@ -1041,6 +1050,8 @@
         return renderPokerGame();
       } else if (gameData.type === GAME_TYPES.BULLSHIT) {
         return renderBullshitGame();
+      } else if (gameData.type === GAME_TYPES.SPADES) {
+        return renderSpadesGame();
       }
       return '<div class="text-white">Loading game...</div>';
     }
@@ -1284,7 +1295,7 @@
                 return `
                   <div class="flex flex-col items-center gap-2 transition-all ${isTurn ? 'scale-110' : 'opacity-85'}">
                     <div class="w-16 h-16 rounded-full border-4 ${isTurn ? 'border-blue-500' : 'border-slate-800'} bg-slate-900 flex items-center justify-center text-2xl relative">
-                      ${p.isAI ? '🤖' : '👤'}
+                      ${p.avatar || (p.isAI ? '🤖' : '👤')}
                       ${s?.folded ? '<div class="absolute inset-0 bg-black/85 flex items-center justify-center text-[8px] font-black text-red-500 uppercase">FOLD</div>' : ''}
                     </div>
                     <div class="flex gap-1 h-10">
@@ -1499,9 +1510,12 @@
                     const isCurrent = p.id === gameData.turn;
                     return `
                       <div class="p-3 rounded-xl ${isCurrent ? 'bg-yellow-600/20 border border-yellow-500/30' : 'bg-black/20 border border-white/5'}">
-                        <div class="flex justify-between items-center">
-                          <p class="font-bold text-white text-sm ${isCurrent ? 'text-yellow-400' : ''}">${p.name}</p>
-                          <p class="text-xs text-slate-400">${hand.length} cards</p>
+                        <div class="flex items-center gap-2">
+                          <div class="text-xl">${p.avatar || '👤'}</div>
+                          <div class="flex-1">
+                            <p class="font-bold text-white text-sm ${isCurrent ? 'text-yellow-400' : ''}">${p.name}</p>
+                            <p class="text-xs text-slate-400">${hand.length} cards</p>
+                          </div>
                         </div>
                       </div>
                     `;
@@ -1531,6 +1545,178 @@
             animation: pulse-bs 0.8s infinite;
           }
         </style>
+      `;
+    }
+    
+    function renderSpadesGame() {
+      const myHand = gameData.hands[currentUser.uid] || [];
+      const isMyTurn = gameData.turn === currentUser.uid;
+      const currentPlayer = gameData.players.find(p => p.id === gameData.turn);
+      const isGameOver = gameData.status === 'ended';
+      const isBidding = gameData.phase === 'bidding';
+      
+      // Determine teams
+      const isPlayerTeam1 = gameData.partnerships.team1.includes(currentUser.uid);
+      const myTeam = isPlayerTeam1 ? 'team1' : 'team2';
+      const opponentTeam = isPlayerTeam1 ? 'team2' : 'team1';
+      
+      const partnerName = gameData.players.find(p => 
+        p.id !== currentUser.uid && gameData.partnerships[myTeam].includes(p.id)
+      )?.name || 'Partner';
+      
+      return `
+        <div class="flex flex-col gap-4 max-w-6xl mx-auto pb-4">
+          <!-- Header -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+            <div class="grid grid-cols-3 gap-4">
+              <div class="text-center">
+                <p class="text-xs font-black uppercase text-slate-500">Round</p>
+                <p class="text-2xl font-black text-white">${gameData.round || 1}</p>
+              </div>
+              <div class="text-center">
+                <p class="text-xs font-black uppercase text-slate-500">${isBidding ? 'Bidding Phase' : 'Trick ' + ((gameData.tricks || 0) + 1)}</p>
+                <p class="text-lg font-black uppercase italic ${isMyTurn ? 'text-green-400' : 'text-white'}">
+                  ${isMyTurn ? '🎯 YOUR TURN' : `⏳ ${currentPlayer?.name || 'Waiting...'}`}
+                </p>
+              </div>
+              <div class="text-center">
+                <p class="text-xs font-black uppercase text-slate-500">Partner</p>
+                <p class="text-lg font-black text-white">${partnerName}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid lg:grid-cols-4 gap-4">
+            <!-- Main Play Area -->
+            <div class="lg:col-span-3 space-y-4">
+              <!-- Current Trick -->
+              ${!isBidding ? `
+                <div class="bg-slate-900 border border-white/10 rounded-2xl p-6">
+                  <p class="text-xs font-black uppercase text-slate-500 mb-4">Current Trick</p>
+                  <div class="grid grid-cols-4 gap-4 min-h-[120px]">
+                    ${gameData.players.map(p => {
+                      const play = gameData.currentTrick?.find(t => t.playerId === p.id);
+                      return `
+                        <div class="text-center">
+                          <div class="mb-2">
+                            <p class="text-xs text-slate-400 font-bold">${p.name}</p>
+                            <p class="text-xl">${p.avatar || '👤'}</p>
+                          </div>
+                          ${play ? renderCard(play.card) : '<div class="w-14 h-20 border-2 border-dashed border-white/5 rounded-lg bg-black/10 mx-auto"></div>'}
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                  ${gameData.leadingSuit ? `<p class="text-xs text-center text-slate-500 mt-3">Leading Suit: ${gameData.leadingSuit}</p>` : ''}
+                </div>
+              ` : ''}
+              
+              <!-- Player's Hand / Bidding -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                  <p class="text-sm font-black uppercase text-slate-400">
+                    ${isBidding ? 'Place Your Bid' : `Your Hand (${myHand.length} cards)`}
+                  </p>
+                </div>
+                
+                ${isBidding ? `
+                  <div class="space-y-4">
+                    <div class="p-4 bg-blue-600/10 border border-blue-500/20 rounded-xl">
+                      <p class="text-sm text-blue-400 mb-3">How many tricks can you win?</p>
+                      <div class="grid grid-cols-7 gap-2">
+                        ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(bid => `
+                          <button class="spades-bid-btn py-3 bg-white/5 hover:bg-green-600 rounded-xl font-black text-white transition-all" data-bid="${bid}">
+                            ${bid}
+                          </button>
+                        `).join('')}
+                      </div>
+                    </div>
+                    <div class="flex gap-2 flex-wrap justify-center bg-black/20 rounded-xl p-4 min-h-[120px]">
+                      ${myHand.map(card => renderCard(card)).join('')}
+                    </div>
+                  </div>
+                ` : `
+                  <div class="flex gap-2 flex-wrap justify-center min-h-[120px] bg-black/20 rounded-xl p-4">
+                    ${myHand.map((card, index) => {
+                      const canPlay = isMyTurn && canPlayCard(card, myHand, gameData.currentTrick || [], gameData.leadingSuit);
+                      return `
+                        <div class="spades-card relative ${canPlay ? 'cursor-pointer hover:scale-110' : 'opacity-50 cursor-not-allowed'} transition-transform" data-card-index="${index}" data-rank="${card.rank}" data-suit="${card.suit}">
+                          ${renderCard(card)}
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                `}
+              </div>
+              
+              ${isGameOver ? `
+                <div class="bg-green-600/20 border border-green-500/50 rounded-2xl p-6 text-center">
+                  <p class="text-3xl mb-2">🎉</p>
+                  <p class="text-2xl font-black text-white uppercase">Game Over!</p>
+                  <p class="text-green-400 mt-2">Team ${gameData.winner === 'team1' ? '1' : '2'} wins!</p>
+                  <button id="return-menu-btn" class="mt-4 px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase text-white transition-all">
+                    Return to Menu
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="space-y-4">
+              <!-- Scores -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-slate-500 mb-3">Scores</p>
+                <div class="space-y-3">
+                  <div class="p-3 rounded-xl ${myTeam === 'team1' ? 'bg-green-600/20 border border-green-500/30' : 'bg-black/20 border border-white/5'}">
+                    <p class="text-xs text-slate-400">Team 1 (You & Partner)</p>
+                    <p class="text-2xl font-black text-white">${gameData.scores?.team1 || 0}</p>
+                    <p class="text-xs text-slate-500">Bags: ${gameData.bags?.team1 || 0}</p>
+                  </div>
+                  <div class="p-3 rounded-xl ${myTeam === 'team2' ? 'bg-green-600/20 border border-green-500/30' : 'bg-black/20 border border-white/5'}">
+                    <p class="text-xs text-slate-400">Team 2 (Opponents)</p>
+                    <p class="text-2xl font-black text-white">${gameData.scores?.team2 || 0}</p>
+                    <p class="text-xs text-slate-500">Bags: ${gameData.bags?.team2 || 0}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Bids & Tricks -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-slate-500 mb-3">Bids & Tricks</p>
+                <div class="space-y-2">
+                  ${gameData.players.map(p => {
+                    const bid = gameData.bids?.[p.id];
+                    const tricks = gameData.tricksWon?.[p.id] || 0;
+                    return `
+                      <div class="p-2 rounded-xl bg-black/20 border border-white/5">
+                        <div class="flex items-center gap-2">
+                          <span class="text-lg">${p.avatar || '👤'}</span>
+                          <div class="flex-1">
+                            <p class="text-xs font-bold text-white">${p.name}</p>
+                            <p class="text-xs text-slate-400">
+                              ${bid !== undefined ? `Bid: ${bid}` : 'Bidding...'}
+                              ${!isBidding ? ` | Won: ${tricks}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+              
+              <!-- Game Log -->
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                <p class="text-xs font-black uppercase text-slate-500 mb-3">Game Log</p>
+                <div class="space-y-1 max-h-60 overflow-y-auto text-xs font-mono">
+                  ${(gameData.logs || []).slice(-10).map(log => `
+                    <div class="p-2 bg-black/20 rounded border-l-2 border-green-500/30 text-slate-400">${log}</div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       `;
     }
 
@@ -1919,6 +2105,17 @@
         await loadLobbies(GAME_TYPES.BULLSHIT);
         render();
       });
+      
+      document.getElementById('spades-solo-btn')?.addEventListener('click', () => {
+        isMultiplayer = false;
+        startSpadesGame();
+      });
+      
+      document.getElementById('spades-multi-btn')?.addEventListener('click', async () => {
+        currentPage = 'spades-lobby';
+        await loadLobbies(GAME_TYPES.SPADES);
+        render();
+      });
     }
     
     function attachPokerSetupListeners() {
@@ -1973,6 +2170,8 @@
           gameType = GAME_TYPES.STRATEGY;
         } else if (currentPage === 'bullshit-lobby') {
           gameType = GAME_TYPES.BULLSHIT;
+        } else if (currentPage === 'spades-lobby') {
+          gameType = GAME_TYPES.SPADES;
         }
         
         await createLobby(gameType);
@@ -2289,6 +2488,53 @@
         });
       }
     }
+    
+    function attachSpadesListeners() {
+      document.getElementById('home-btn').addEventListener('click', () => {
+        currentPage = 'menu';
+        gameData = null;
+        render();
+      });
+
+      document.getElementById('profile-btn').addEventListener('click', () => {
+        currentPage = 'profile';
+        render();
+      });
+
+      document.getElementById('signout-btn').addEventListener('click', async () => {
+        await signOut(auth);
+      });
+      
+      // Bid buttons
+      document.querySelectorAll('.spades-bid-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const bid = parseInt(btn.dataset.bid);
+          handleSpadesBid(bid);
+        });
+      });
+      
+      // Card playing
+      document.querySelectorAll('.spades-card').forEach(cardEl => {
+        cardEl.addEventListener('click', () => {
+          const index = parseInt(cardEl.dataset.cardIndex);
+          const rank = cardEl.dataset.rank;
+          const suit = cardEl.dataset.suit;
+          
+          const card = { rank, suit };
+          handleSpadesPlay(card);
+        });
+      });
+      
+      // Return to menu button
+      const returnMenuBtn = document.getElementById('return-menu-btn');
+      if (returnMenuBtn) {
+        returnMenuBtn.addEventListener('click', () => {
+          currentPage = 'menu';
+          gameData = null;
+          render();
+        });
+      }
+    }
 
     // Multiplayer Lobby Functions
     async function loadLobbies(gameType) {
@@ -2330,8 +2576,8 @@
         
         // Set max players based on game type
         let maxPlayers = 8; // Default for Poker and Strategy
-        if (gameType === GAME_TYPES.BULLSHIT) {
-          maxPlayers = 4; // Bullshit works best with 2-4 players
+        if (gameType === GAME_TYPES.BULLSHIT || gameType === GAME_TYPES.SPADES) {
+          maxPlayers = 4; // Bullshit and Spades both need exactly 4 players
         }
         
         const lobbyData = {
@@ -2341,7 +2587,8 @@
           hostName: currentUser.displayName || 'Player',
           players: [{
             id: currentUser.uid,
-            name: currentUser.displayName || 'Player'
+            name: currentUser.displayName || 'Player',
+            avatar: userStats.avatar || '👤'
           }],
           maxPlayers,
           status: 'waiting',
@@ -2439,7 +2686,8 @@
         // Add player to lobby
         const updatedPlayers = [...lobby.players, {
           id: currentUser.uid,
-          name: currentUser.displayName || 'Player'
+          name: currentUser.displayName || 'Player',
+          avatar: userStats.avatar || '👤'
         }];
         
         console.log('Adding player to lobby, new players:', updatedPlayers);
@@ -2530,6 +2778,8 @@
           newGameData = await initializeStrategyGame(gameData.players, true);
         } else if (gameData.gameType === GAME_TYPES.BULLSHIT) {
           newGameData = await initializeBullshitGame(gameData.players, true);
+        } else if (gameData.gameType === GAME_TYPES.SPADES) {
+          newGameData = await initializeSpadesGame(gameData.players, true);
         }
         
         // Update lobby to starting status with game data
@@ -2597,6 +2847,12 @@
             // Run AI if single player
             if (!gameData.isMultiplayer && gameData.turn !== currentUser.uid) {
               runBullshitAI();
+            }
+          }
+          if (gameData.type === GAME_TYPES.SPADES) {
+            // Run AI if single player
+            if (!gameData.isMultiplayer && gameData.turn !== currentUser.uid) {
+              runSpadesAI();
             }
           }
         }
@@ -2832,14 +3088,17 @@
     async function startBullshitGame() {
       const aiCount = isMultiplayer ? 0 : bullshitAIPlayerCount;
       const aiNames = ['Bluff-Bot', 'Truth-Teller', 'Wild-Card', 'Poker-Face', 'Lucky-Liar'];
+      const aiAvatars = ['🤥', '😇', '🃏', '😎', '🍀'];
+      
       const aiPlayers = Array.from({ length: aiCount }, (_, i) => ({
         id: `ai-${i + 1}`,
         name: aiNames[i] || `AI-${i + 1}`,
-        isAI: true
+        isAI: true,
+        avatar: aiAvatars[i] || '🤖'
       }));
       
       const players = [
-        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false },
+        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false, avatar: userStats.avatar || '👤' },
         ...aiPlayers
       ];
       
@@ -3130,6 +3389,496 @@
       }, 1000);
     }
 
+    // ========================================
+    // SPADES GAME
+    // ========================================
+    
+    async function initializeSpadesGame(players, isMulti) {
+      // Spades requires exactly 4 players
+      if (players.length !== 4) {
+        throw new Error('Spades requires exactly 4 players');
+      }
+      
+      const deck = generateDeck();
+      const hands = {};
+      
+      // Deal 13 cards to each player
+      players.forEach((player, i) => {
+        hands[player.id] = deck.splice(0, 13).sort((a, b) => {
+          const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+          const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+          if (suitOrder[a.suit] !== suitOrder[b.suit]) return suitOrder[a.suit] - suitOrder[b.suit];
+          return rankOrder[a.rank] - rankOrder[b.rank];
+        });
+      });
+      
+      // Partnerships: 0-2 (player 0 and 2), 1-3 (player 1 and 3)
+      const partnerships = {
+        team1: [players[0].id, players[2].id],
+        team2: [players[1].id, players[3].id]
+      };
+      
+      return {
+        type: GAME_TYPES.SPADES,
+        players,
+        hands,
+        partnerships,
+        bids: {},
+        tricks: 0,
+        currentTrick: [],
+        currentPlayerIndex: 0,
+        turn: players[0].id,
+        leadingSuit: null,
+        scores: { team1: 0, team2: 0 },
+        bags: { team1: 0, team2: 0 },
+        tricksWon: {},
+        phase: 'bidding',
+        status: 'playing',
+        logs: ['Game started! Place your bids.'],
+        isMultiplayer: isMulti,
+        round: 1
+      };
+    }
+    
+    async function startSpadesGame() {
+      const aiCount = isMultiplayer ? 0 : 3;
+      const aiNames = ['North AI', 'East AI', 'South AI'];
+      const aiAvatars = ['🧭', '🌅', '🏜️'];
+      
+      const aiPlayers = Array.from({ length: aiCount }, (_, i) => ({
+        id: `ai-${i + 1}`,
+        name: aiNames[i] || `AI-${i + 1}`,
+        isAI: true,
+        avatar: aiAvatars[i] || '🤖'
+      }));
+      
+      const players = [
+        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false, avatar: userStats.avatar || '👤' },
+        ...aiPlayers
+      ];
+      
+      const gameDataInit = await initializeSpadesGame(players, false);
+      gameData = gameDataInit;
+      currentPage = 'game';
+      render();
+      
+      // Start AI bidding if needed
+      if (gameData.turn !== currentUser.uid && gameData.phase === 'bidding') {
+        setTimeout(() => runSpadesAI(), 1500);
+      }
+    }
+    
+    function handleSpadesBid(bidAmount) {
+      if (!gameData || gameData.phase !== 'bidding') return;
+      if (gameData.turn !== currentUser.uid) return;
+      
+      const newBids = { ...gameData.bids };
+      newBids[currentUser.uid] = bidAmount;
+      
+      const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+      const nextPlayer = gameData.players[nextPlayerIndex];
+      
+      const updates = {
+        bids: newBids,
+        currentPlayerIndex: nextPlayerIndex,
+        turn: nextPlayer.id,
+        logs: [...gameData.logs, `${currentUser.displayName || 'You'} bid ${bidAmount} trick${bidAmount !== 1 ? 's' : ''}`]
+      };
+      
+      // Check if all bids are in
+      if (Object.keys(newBids).length === 4) {
+        updates.phase = 'playing';
+        updates.logs = [...updates.logs, 'All bids placed! Game begins.'];
+        
+        // Initialize tricks won
+        const tricksWon = {};
+        gameData.players.forEach(p => tricksWon[p.id] = 0);
+        updates.tricksWon = tricksWon;
+      }
+      
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        if (updates.phase === 'playing') {
+          setTimeout(() => runSpadesAI(), 1000);
+        } else if (gameData.turn !== currentUser.uid) {
+          setTimeout(() => runSpadesAI(), 1000);
+        }
+      }
+    }
+    
+    function handleSpadesPlay(card) {
+      if (!gameData || gameData.phase !== 'playing') return;
+      if (gameData.turn !== currentUser.uid) return;
+      
+      const playerHand = gameData.hands[currentUser.uid];
+      const currentTrick = gameData.currentTrick || [];
+      
+      // Validate play
+      if (!canPlayCard(card, playerHand, currentTrick, gameData.leadingSuit)) {
+        alert('You must follow suit if possible!');
+        return;
+      }
+      
+      // Remove card from hand
+      const newHands = { ...gameData.hands };
+      newHands[currentUser.uid] = playerHand.filter(c => !(c.suit === card.suit && c.rank === card.rank));
+      
+      // Add to current trick
+      const newTrick = [...currentTrick, { playerId: currentUser.uid, card }];
+      
+      const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+      const nextPlayer = gameData.players[nextPlayerIndex];
+      
+      let updates = {
+        hands: newHands,
+        currentTrick: newTrick,
+        currentPlayerIndex: nextPlayerIndex,
+        turn: nextPlayer.id,
+        logs: [...gameData.logs, `${currentUser.displayName || 'You'} played ${card.rank}${card.suit}`]
+      };
+      
+      // Set leading suit if first card
+      if (currentTrick.length === 0) {
+        updates.leadingSuit = card.suit;
+      }
+      
+      // Check if trick is complete
+      if (newTrick.length === 4) {
+        const winner = determineTrickWinner(newTrick, updates.leadingSuit);
+        const winnerPlayer = gameData.players.find(p => p.id === winner);
+        
+        const newTricksWon = { ...gameData.tricksWon };
+        newTricksWon[winner] = (newTricksWon[winner] || 0) + 1;
+        
+        updates.tricksWon = newTricksWon;
+        updates.tricks = (gameData.tricks || 0) + 1;
+        updates.logs = [...updates.logs, `${winnerPlayer.name} wins the trick!`];
+        updates.currentTrick = [];
+        updates.leadingSuit = null;
+        
+        // Find winner's index for next turn
+        const winnerIndex = gameData.players.findIndex(p => p.id === winner);
+        updates.currentPlayerIndex = winnerIndex;
+        updates.turn = winner;
+        
+        // Check if round is over (13 tricks)
+        if (updates.tricks === 13) {
+          const scores = calculateSpadesScores(gameData);
+          updates.scores = scores.scores;
+          updates.bags = scores.bags;
+          updates.logs = [...updates.logs, ...scores.logs];
+          
+          // Check for winner (500 points)
+          if (scores.scores.team1 >= 500 || scores.scores.team2 >= 500) {
+            updates.status = 'ended';
+            updates.winner = scores.scores.team1 >= 500 ? 'team1' : 'team2';
+            updates.logs = [...updates.logs, `🎉 Team ${updates.winner === 'team1' ? '1' : '2'} wins!`];
+            
+            if (!gameData.isMultiplayer) {
+              const isPlayerTeam1 = gameData.partnerships.team1.includes(currentUser.uid);
+              const playerWon = (isPlayerTeam1 && updates.winner === 'team1') || 
+                               (!isPlayerTeam1 && updates.winner === 'team2');
+              
+              if (playerWon) {
+                updateStats({
+                  spadesWins: (userStats.spadesWins || 0) + 1,
+                  totalWins: userStats.totalWins + 1,
+                  gamesPlayed: userStats.gamesPlayed + 1
+                });
+              } else {
+                updateStats({
+                  gamesPlayed: userStats.gamesPlayed + 1
+                });
+              }
+            }
+          } else {
+            // Start new round
+            updates = startNewSpadesRound(updates);
+          }
+        }
+      }
+      
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        if (updates.status !== 'ended' && updates.turn !== currentUser.uid) {
+          setTimeout(() => runSpadesAI(), 1000);
+        }
+      }
+    }
+    
+    function canPlayCard(card, hand, currentTrick, leadingSuit) {
+      // First card of trick - can play anything
+      if (currentTrick.length === 0) return true;
+      
+      // Must follow suit if possible
+      const hasSuit = hand.some(c => c.suit === leadingSuit);
+      if (hasSuit) {
+        return card.suit === leadingSuit;
+      }
+      
+      // Can play any card if can't follow suit
+      return true;
+    }
+    
+    function determineTrickWinner(trick, leadingSuit) {
+      let winningPlay = trick[0];
+      
+      for (let i = 1; i < trick.length; i++) {
+        const currentPlay = trick[i];
+        
+        // Spades always win
+        if (currentPlay.card.suit === '♠' && winningPlay.card.suit !== '♠') {
+          winningPlay = currentPlay;
+        } else if (currentPlay.card.suit === '♠' && winningPlay.card.suit === '♠') {
+          // Both spades, higher wins
+          if (getCardValue(currentPlay.card) > getCardValue(winningPlay.card)) {
+            winningPlay = currentPlay;
+          }
+        } else if (winningPlay.card.suit !== '♠' && currentPlay.card.suit === leadingSuit) {
+          // Neither spades, must match leading suit and be higher
+          if (winningPlay.card.suit !== leadingSuit || getCardValue(currentPlay.card) > getCardValue(winningPlay.card)) {
+            winningPlay = currentPlay;
+          }
+        }
+      }
+      
+      return winningPlay.playerId;
+    }
+    
+    function getCardValue(card) {
+      const values = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+      return values[card.rank];
+    }
+    
+    function calculateSpadesScores(gameData) {
+      const { bids, tricksWon, partnerships, scores, bags } = gameData;
+      
+      const newScores = { ...scores };
+      const newBags = { ...bags };
+      const logs = [];
+      
+      // Calculate team tricks
+      const team1Tricks = partnerships.team1.reduce((sum, pid) => sum + (tricksWon[pid] || 0), 0);
+      const team2Tricks = partnerships.team2.reduce((sum, pid) => sum + (tricksWon[pid] || 0), 0);
+      
+      const team1Bid = partnerships.team1.reduce((sum, pid) => sum + (bids[pid] || 0), 0);
+      const team2Bid = partnerships.team2.reduce((sum, pid) => sum + (bids[pid] || 0), 0);
+      
+      // Team 1 scoring
+      if (team1Tricks >= team1Bid) {
+        newScores.team1 += team1Bid * 10;
+        const overtricks = team1Tricks - team1Bid;
+        newScores.team1 += overtricks;
+        newBags.team1 += overtricks;
+        logs.push(`Team 1: Made bid! +${team1Bid * 10} points, ${overtricks} bag${overtricks !== 1 ? 's' : ''}`);
+      } else {
+        newScores.team1 -= team1Bid * 10;
+        logs.push(`Team 1: Set! -${team1Bid * 10} points`);
+      }
+      
+      // Team 2 scoring
+      if (team2Tricks >= team2Bid) {
+        newScores.team2 += team2Bid * 10;
+        const overtricks = team2Tricks - team2Bid;
+        newScores.team2 += overtricks;
+        newBags.team2 += overtricks;
+        logs.push(`Team 2: Made bid! +${team2Bid * 10} points, ${overtricks} bag${overtricks !== 1 ? 's' : ''}`);
+      } else {
+        newScores.team2 -= team2Bid * 10;
+        logs.push(`Team 2: Set! -${team2Bid * 10} points`);
+      }
+      
+      // Bag penalty (10 bags = -100 points)
+      if (newBags.team1 >= 10) {
+        newScores.team1 -= 100;
+        newBags.team1 -= 10;
+        logs.push(`Team 1: 10 bags! -100 points`);
+      }
+      if (newBags.team2 >= 10) {
+        newScores.team2 -= 100;
+        newBags.team2 -= 10;
+        logs.push(`Team 2: 10 bags! -100 points`);
+      }
+      
+      logs.push(`Scores - Team 1: ${newScores.team1}, Team 2: ${newScores.team2}`);
+      
+      return { scores: newScores, bags: newBags, logs };
+    }
+    
+    function startNewSpadesRound(updates) {
+      const deck = generateDeck();
+      const newHands = {};
+      
+      gameData.players.forEach((player, i) => {
+        newHands[player.id] = deck.splice(0, 13).sort((a, b) => {
+          const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+          const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+          if (suitOrder[a.suit] !== suitOrder[b.suit]) return suitOrder[a.suit] - suitOrder[b.suit];
+          return rankOrder[a.rank] - rankOrder[b.rank];
+        });
+      });
+      
+      return {
+        ...updates,
+        hands: newHands,
+        bids: {},
+        tricks: 0,
+        currentTrick: [],
+        currentPlayerIndex: 0,
+        turn: gameData.players[0].id,
+        leadingSuit: null,
+        tricksWon: {},
+        phase: 'bidding',
+        round: (gameData.round || 1) + 1,
+        logs: [...updates.logs, `Round ${(gameData.round || 1) + 1} - Place your bids!`]
+      };
+    }
+    
+    function runSpadesAI() {
+      if (!gameData || gameData.status !== 'playing') return;
+      if (gameData.turn === currentUser.uid) return;
+      
+      const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+      if (!currentPlayer || !currentPlayer.isAI) return;
+      
+      setTimeout(() => {
+        if (gameData.phase === 'bidding') {
+          // AI bidding logic - count high cards and spades
+          const hand = gameData.hands[currentPlayer.id];
+          const spades = hand.filter(c => c.suit === '♠').length;
+          const highCards = hand.filter(c => ['A', 'K', 'Q'].includes(c.rank)).length;
+          const bid = Math.max(1, Math.min(Math.floor(spades / 3) + Math.floor(highCards / 2), 13));
+          
+          const newBids = { ...gameData.bids };
+          newBids[currentPlayer.id] = bid;
+          
+          const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+          const nextPlayer = gameData.players[nextPlayerIndex];
+          
+          const updates = {
+            bids: newBids,
+            currentPlayerIndex: nextPlayerIndex,
+            turn: nextPlayer.id,
+            logs: [...gameData.logs, `${currentPlayer.name} bid ${bid} trick${bid !== 1 ? 's' : ''}`]
+          };
+          
+          if (Object.keys(newBids).length === 4) {
+            updates.phase = 'playing';
+            updates.logs = [...updates.logs, 'All bids placed! Game begins.'];
+            
+            const tricksWon = {};
+            gameData.players.forEach(p => tricksWon[p.id] = 0);
+            updates.tricksWon = tricksWon;
+          }
+          
+          if (gameData.isMultiplayer && gameId) {
+            updateDoc(doc(db, 'games', gameId), updates);
+          } else {
+            updateGameState(updates);
+            setTimeout(() => runSpadesAI(), 1000);
+          }
+        } else {
+          // AI playing logic - simple strategy
+          const hand = gameData.hands[currentPlayer.id];
+          const currentTrick = gameData.currentTrick || [];
+          const leadingSuit = gameData.leadingSuit;
+          
+          let cardToPlay;
+          
+          if (currentTrick.length === 0) {
+            // Leading - play lowest non-spade if possible
+            const nonSpades = hand.filter(c => c.suit !== '♠');
+            cardToPlay = nonSpades.length > 0 ? 
+              nonSpades.sort((a, b) => getCardValue(a) - getCardValue(b))[0] :
+              hand.sort((a, b) => getCardValue(a) - getCardValue(b))[0];
+          } else {
+            // Following - try to follow suit with lowest card
+            const sameSuit = hand.filter(c => c.suit === leadingSuit);
+            if (sameSuit.length > 0) {
+              cardToPlay = sameSuit.sort((a, b) => getCardValue(a) - getCardValue(b))[0];
+            } else {
+              // Can't follow suit - play lowest card
+              cardToPlay = hand.sort((a, b) => getCardValue(a) - getCardValue(b))[0];
+            }
+          }
+          
+          const newHands = { ...gameData.hands };
+          newHands[currentPlayer.id] = hand.filter(c => !(c.suit === cardToPlay.suit && c.rank === cardToPlay.rank));
+          
+          const newTrick = [...currentTrick, { playerId: currentPlayer.id, card: cardToPlay }];
+          
+          const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+          const nextPlayer = gameData.players[nextPlayerIndex];
+          
+          let updates = {
+            hands: newHands,
+            currentTrick: newTrick,
+            currentPlayerIndex: nextPlayerIndex,
+            turn: nextPlayer.id,
+            logs: [...gameData.logs, `${currentPlayer.name} played ${cardToPlay.rank}${cardToPlay.suit}`]
+          };
+          
+          if (currentTrick.length === 0) {
+            updates.leadingSuit = cardToPlay.suit;
+          }
+          
+          if (newTrick.length === 4) {
+            const winner = determineTrickWinner(newTrick, updates.leadingSuit);
+            const winnerPlayer = gameData.players.find(p => p.id === winner);
+            
+            const newTricksWon = { ...gameData.tricksWon };
+            newTricksWon[winner] = (newTricksWon[winner] || 0) + 1;
+            
+            updates.tricksWon = newTricksWon;
+            updates.tricks = (gameData.tricks || 0) + 1;
+            updates.logs = [...updates.logs, `${winnerPlayer.name} wins the trick!`];
+            updates.currentTrick = [];
+            updates.leadingSuit = null;
+            
+            const winnerIndex = gameData.players.findIndex(p => p.id === winner);
+            updates.currentPlayerIndex = winnerIndex;
+            updates.turn = winner;
+            
+            if (updates.tricks === 13) {
+              const scores = calculateSpadesScores(gameData);
+              updates.scores = scores.scores;
+              updates.bags = scores.bags;
+              updates.logs = [...updates.logs, ...scores.logs];
+              
+              if (scores.scores.team1 >= 500 || scores.scores.team2 >= 500) {
+                updates.status = 'ended';
+                updates.winner = scores.scores.team1 >= 500 ? 'team1' : 'team2';
+                updates.logs = [...updates.logs, `🎉 Team ${updates.winner === 'team1' ? '1' : '2'} wins!`];
+                
+                if (!gameData.isMultiplayer) {
+                  updateStats({ gamesPlayed: userStats.gamesPlayed + 1 });
+                }
+              } else {
+                updates = startNewSpadesRound(updates);
+              }
+            }
+          }
+          
+          if (gameData.isMultiplayer && gameId) {
+            updateDoc(doc(db, 'games', gameId), updates);
+          } else {
+            updateGameState(updates);
+            setTimeout(() => runSpadesAI(), 1000);
+          }
+        }
+      }, 1500);
+    }
+
     function handleStrategyNodeClick(index) {
       if (gameData.turn !== 'player' || gameData.status !== 'playing') return;
       
@@ -3408,14 +4157,17 @@
     async function startPokerGame() {
       const aiCount = isMultiplayer ? 0 : aiPlayerCount;
       const aiNames = ['Neural-X','Deep-Logik','Cipher-Flux','Quantum-Node','Omega-Grid','Sigma-Core','Alpha-Net','Zenith-Stack'];
+      const aiAvatars = ['🤖', '🦾', '👾', '🎮', '⚡', '🔥', '💎', '🎯'];
+      
       const aiPlayers = Array.from({ length: aiCount }, (_, i) => ({
         id: `ai-${i + 1}`,
         name: aiNames[i] || `AI-${i + 1}`,
-        isAI: true
+        isAI: true,
+        avatar: aiAvatars[i] || '🤖'
       }));
       
       const players = [
-        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false },
+        { id: currentUser.uid, name: currentUser.displayName || 'You', isAI: false, avatar: userStats.avatar || '👤' },
         ...aiPlayers
       ];
       
