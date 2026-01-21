@@ -20,6 +20,125 @@
     .animate-pulse {
       animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+    
+    /* Mobile Responsive Overrides */
+    @media (max-width: 640px) {
+      /* Make text more readable on mobile */
+      body {
+        font-size: 14px;
+      }
+      
+      /* Reduce padding/margins on mobile */
+      .max-w-7xl, .max-w-6xl, .max-w-5xl {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
+      
+      /* Make cards smaller on mobile */
+      .card-mini {
+        width: 2.5rem !important;
+        height: 3.5rem !important;
+        font-size: 0.6rem !important;
+      }
+      
+      /* Poker table adjustments */
+      .poker-table-mobile {
+        min-height: 300px !important;
+        border-radius: 40px !important;
+        border-width: 6px !important;
+        padding: 1rem !important;
+        padding-top: 3rem !important;
+      }
+      
+      /* Community cards row - stack on mobile */
+      .community-cards-container {
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+      }
+      
+      /* Player controls - full width on mobile */
+      .player-controls-mobile {
+        grid-template-columns: 1fr !important;
+      }
+      
+      /* Reduce avatar sizes on mobile */
+      .opponent-avatar {
+        width: 3rem !important;
+        height: 3rem !important;
+        font-size: 1.25rem !important;
+      }
+      
+      /* Stack game controls vertically on mobile */
+      .game-controls-stack {
+        flex-direction: column !important;
+      }
+      
+      /* Make buttons touch-friendly (minimum 44px) */
+      button {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      
+      /* Reduce font sizes in tight spaces */
+      .text-2xl { font-size: 1.25rem !important; }
+      .text-xl { font-size: 1.125rem !important; }
+      .text-lg { font-size: 1rem !important; }
+      
+      /* Make modals full-screen on mobile */
+      .modal-container {
+        max-width: 100% !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+      }
+      
+      /* Reduce grid gaps on mobile */
+      .grid {
+        gap: 0.75rem !important;
+      }
+      
+      /* Make strategy grid smaller on mobile */
+      .strategy-grid-mobile {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      }
+      
+      /* Bullshit/Spades hand - scrollable on mobile */
+      .hand-container-mobile {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+      }
+      
+      /* Navigation - compact on mobile */
+      nav h1 {
+        font-size: 1rem !important;
+      }
+      
+      nav button span:last-child {
+        display: none !important;
+      }
+    }
+    
+    /* Landscape mobile adjustments */
+    @media (max-width: 896px) and (orientation: landscape) {
+      .poker-table-mobile {
+        min-height: 200px !important;
+      }
+      
+      .opponent-avatar {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+      }
+    }
+    
+    /* Tablet adjustments */
+    @media (min-width: 641px) and (max-width: 1024px) {
+      .card-mini {
+        width: 3rem !important;
+        height: 4.25rem !important;
+      }
+    }
+  </style>
     .animate-in {
       animation: fadeIn 0.5s ease-in;
     }
@@ -5088,4 +5207,3 @@
   <div id="root"></div>
 </body>
 </html>
-
