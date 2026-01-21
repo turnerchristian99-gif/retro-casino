@@ -4648,32 +4648,20 @@
       const currentS = gameData.playerStates[currentP.id];
       
       // If current player is active and can act, wait for them
+      // UNLESS minimum actions have been satisfied (everyone has acted at least once)
+      const numActivePlayers = activePlayers.filter(p => {
+        const s = gameData.playerStates[p.id];
+        return !s.isAllIn && s.chips > 0;
+      }).length;
+      
+      const minActionsForHeadsUp = gameData.players.length === 2 ? 2 : numActivePlayers;
+      const minActionsSatisfied = gameData.turnIndex >= minActionsForHeadsUp;
+      
       if (gameData.isMultiplayer) {
-        // In multiplayer, wait if the current player can act
-        // BUT also check if they're actually waiting to act (not already acted this round)
-        if (currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0) {
-          // Check if this player has had a chance to act in this betting round
-          // If turnIndex is 0, no one has acted yet
-          // If turnIndex >= number of active players, everyone has had at least one action
-          const numActivePlayers = activePlayers.filter(p => {
-            const s = gameData.playerStates[p.id];
-            return !s.isAllIn && s.chips > 0;
-          }).length;
-          
-          const hasEveryoneActedOnce = gameData.turnIndex >= numActivePlayers;
-          
-          // If not everyone has acted once yet, wait for current player
-          if (!hasEveryoneActedOnce) {
-            console.log('Waiting for current player to act:', currentP.name, 'turnIndex:', gameData.turnIndex, 'numActive:', numActivePlayers);
-            return;
-          }
-          
-          // Everyone has acted once, now check if bets are matched
-          // If current player's contribution doesn't match currentBet, they need to act again
-          if (currentS.contribution !== gameData.currentBet && gameData.currentBet > 0) {
-            console.log('Waiting for current player to match bet:', currentP.name);
-            return;
-          }
+        // In multiplayer, wait if the current player can act AND minimum actions haven't been met
+        if (currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0 && !minActionsSatisfied) {
+          console.log('Waiting for current player to act (min actions not met):', currentP.name, 'turnIndex:', gameData.turnIndex, 'minRequired:', minActionsForHeadsUp);
+          return;
         }
       } else {
         // Single-player: wait if it's a human player's turn
