@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Retro Royal</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23facc15' d='M6 44L14 18l18 14 18-14 8 26H6z'/><rect x='10' y='44' width='44' height='8' fill='%23ca8a04'/></svg>">
-
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes spin {
@@ -371,9 +369,9 @@
         }
             }
           }
-        
-      
-    
+        }
+      }
+    }
 
     function renderMainLayout() {
       return `
@@ -790,7 +788,7 @@
               🃏
             </div>
             <div>
-              <h3 class="text-2xl font-black uppercase italic text-white">Bs</h3>
+              <h3 class="text-2xl font-black uppercase italic text-white">Bullshit</h3>
               <p class="text-slate-400 font-medium mt-1 text-sm">Bluff your way to victory</p>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -2801,6 +2799,22 @@
       unsubscribe = onSnapshot(gameRef, (snapshot) => {
         if (snapshot.exists()) {
           gameData = snapshot.data();
+          
+          if (gameData.type === GAME_TYPES.POKER) {
+            console.log('Poker game update received:', {
+              round: gameData.round,
+              communityCards: gameData.communityCards,
+              communityCardsLength: gameData.communityCards?.length || 0,
+              isMultiplayer: gameData.isMultiplayer,
+              turnIndex: gameData.turnIndex,
+              actionStartIndex: gameData.actionStartIndex,
+              currentPlayerIndex: ((gameData.actionStartIndex || 0) + gameData.turnIndex) % gameData.players.length,
+              currentPlayerId: gameData.players[((gameData.actionStartIndex || 0) + gameData.turnIndex) % gameData.players.length]?.id,
+              myId: currentUser.uid,
+              isMyTurn: gameData.players[((gameData.actionStartIndex || 0) + gameData.turnIndex) % gameData.players.length]?.id === currentUser.uid
+            });
+          }
+          
           render();
           
           // Run AI if needed
@@ -2808,9 +2822,17 @@
             runStrategyAI();
           }
           if (gameData.type === GAME_TYPES.POKER) {
-            checkPokerRoundAdvance();
-            if (isAITurn()) {
-              runPokerAI();
+            // Only check round advance automatically in single-player
+            // In multiplayer, it's called explicitly after each action
+            if (!gameData.isMultiplayer) {
+              setTimeout(() => {
+                if (gameData && gameData.type === GAME_TYPES.POKER) {
+                  checkPokerRoundAdvance();
+                  if (isAITurn()) {
+                    runPokerAI();
+                  }
+                }
+              }, 100);
             }
           }
           if (gameData.type === GAME_TYPES.BULLSHIT) {
@@ -2890,8 +2912,22 @@
       const dealerIndex = 0;
       const smallBlind = 10;
       const bigBlind = 20;
-      const sbIndex = (dealerIndex + 1) % players.length;
-      const bbIndex = (dealerIndex + 2) % players.length;
+      
+      let sbIndex, bbIndex, actionStartIndex;
+      
+      if (players.length === 2) {
+        // Heads-up: Dealer is Small Blind, other player is Big Blind
+        // Dealer acts first pre-flop
+        sbIndex = dealerIndex;
+        bbIndex = (dealerIndex + 1) % 2;
+        actionStartIndex = dealerIndex;  // Dealer (SB) acts first
+      } else {
+        // 3+ players: Normal blind structure
+        sbIndex = (dealerIndex + 1) % players.length;
+        bbIndex = (dealerIndex + 2) % players.length;
+        actionStartIndex = (bbIndex + 1) % players.length;  // After BB
+      }
+      
       const sbPlayer = players[sbIndex];
       const bbPlayer = players[bbIndex];
       if (playerStates[sbPlayer.id]) {
@@ -2914,11 +2950,12 @@
         currentBet: bigBlind,
         round: 'pre-flop',
         turnIndex: 0,
-        actionStartIndex: (bbIndex + 1) % players.length,
-        expectedActorId: players[(bbIndex + 1) % players.length].id,
+        actionStartIndex: actionStartIndex,
+        expectedActorId: players[actionStartIndex].id,
         dealerIndex,
         status: 'playing',
-        logs
+        logs,
+        isMultiplayer: isMulti
       };
     }
 
@@ -4222,21 +4259,37 @@
         logMsg = `${playerName} raised to $${newBet}`;
       }
 
-      updateGameState({
+      const updates = {
         playerStates: states,
         turnIndex: gameData.turnIndex + 1,
         expectedActorId: gameData.players[((gameData.actionStartIndex || 0) + gameData.turnIndex + 1) % gameData.players.length].id,
         pot: gameData.pot + potAdd,
         currentBet: newBet,
         logs: [...(gameData.logs || []), `${logMsg}`]
-      });
+      };
 
-      setTimeout(() => {
-        checkPokerRoundAdvance();
-        if (isAITurn()) {
-          runPokerAI();
-        }
-      }, 500);
+      if (gameData.isMultiplayer && gameId) {
+        // In multiplayer, update Firebase and wait for it to complete
+        updateDoc(doc(db, 'games', gameId), updates).then(() => {
+          console.log('Firebase update complete, waiting for snapshot to update gameData...');
+          // Wait a moment for the snapshot to update our local gameData
+          setTimeout(() => {
+            console.log('Now checking if round should advance...');
+            checkPokerRoundAdvance();
+          }, 200);
+        }).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        setTimeout(() => {
+          checkPokerRoundAdvance();
+          if (isAITurn()) {
+            runPokerAI();
+          }
+        }, 500);
+      }
     }
 
  
@@ -4384,7 +4437,14 @@
       const currentS = gameData.playerStates[currentP.id];
       
       // If current player is active and can act, wait for them
-      if (!currentP?.isAI && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0) {
+      // In multiplayer: only return if this is the current player's client
+      // In single-player: return if it's a human player (not AI)
+      const shouldWaitForPlayer = gameData.isMultiplayer 
+        ? (currentP.id === currentUser.uid && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0)
+        : (!currentP?.isAI && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0);
+      
+      if (shouldWaitForPlayer) {
+        console.log('Waiting for current player to act:', currentP.name);
         return;
       }
       
@@ -4392,17 +4452,25 @@
       if (currentS && (currentS.folded || currentS.isAllIn || currentS.chips <= 0)) {
         const nextTurn = gameData.turnIndex + 1;
         const nextActorId = gameData.players[((gameData.actionStartIndex || 0) + nextTurn) % gameData.players.length].id;
-        updateGameState({ turnIndex: nextTurn, expectedActorId: nextActorId });
-        setTimeout(() => {
-          checkPokerRoundAdvance();
-          if (isAITurn()) runPokerAI();
-        }, 300);
+        
+        const updates = { turnIndex: nextTurn, expectedActorId: nextActorId };
+        
+        if (gameData.isMultiplayer && gameId) {
+          updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+            console.error('Error updating game:', err);
+          });
+        } else {
+          updateGameState(updates);
+          setTimeout(() => {
+            checkPokerRoundAdvance();
+            if (isAITurn()) runPokerAI();
+          }, 300);
+        }
         return;
       }
       
       // Count how many active players have acted this round
       let activePlayerTurnCount = 0;
-      let reachedCurrentTurn = false;
       
       for (let i = 0; i <= gameData.turnIndex && i < gameData.players.length * 2; i++) {
         const idx = ((gameData.actionStartIndex || 0) + i) % gameData.players.length;
@@ -4413,11 +4481,6 @@
         if (!pState.folded && !pState.isAllIn && pState.chips > 0) {
           activePlayerTurnCount++;
         }
-        
-        if (i === gameData.turnIndex) {
-          reachedCurrentTurn = true;
-          break;
-        }
       }
       
       // Get count of players who still need to act
@@ -4426,24 +4489,74 @@
         return !s.isAllIn && s.chips > 0;
       }).length;
       
-      const allActed = activePlayerTurnCount >= playersWhoCanAct;
+      // In heads-up (2 players), both must act at least once in pre-flop
+      // In other rounds, both must check/call after the flop
+      const minActionsRequired = (gameData.players.length === 2 && gameData.round === 'pre-flop') 
+        ? 2  // Both players must act in pre-flop
+        : playersWhoCanAct;  // Normal requirement
+      
+      const allActed = activePlayerTurnCount >= minActionsRequired;
       const allMatchedBet = activePlayers.every(p => {
         const state = gameData.playerStates[p.id];
         return state.folded || state.contribution === gameData.currentBet || state.isAllIn || state.chips === 0;
+      });
+
+      console.log('checkPokerRoundAdvance details:', {
+        round: gameData.round,
+        turnIndex: gameData.turnIndex,
+        activePlayerTurnCount,
+        playersWhoCanAct,
+        allActed,
+        allMatchedBet,
+        currentBet: gameData.currentBet,
+        playerContributions: Object.fromEntries(
+          gameData.players.map(p => [p.name, {
+            contribution: gameData.playerStates[p.id].contribution,
+            chips: gameData.playerStates[p.id].chips,
+            folded: gameData.playerStates[p.id].folded,
+            matchesBet: gameData.playerStates[p.id].contribution === gameData.currentBet
+          }])
+        ),
+        activePlayers: activePlayers.map(p => p.name),
+        actionStartIndex: gameData.actionStartIndex,
+        pot: gameData.pot
       });
 
       // Check for fast-forward (all-in situation)
       const anyAllIn = activePlayers.some(p => gameData.playerStates[p.id].isAllIn);
       if (anyAllIn && allMatchedBet && !ffActive) {
         ffActive = true;
-        updateGameState({ logs: [...(gameData.logs || []), "⚡ FAST-FORWARD: All-in phase. Dealing..."] });
-        setTimeout(() => runAutoDealer(gameData.round, gameData.deck, gameData.communityCards), 1000);
+        const updates = { logs: [...(gameData.logs || []), "⚡ FAST-FORWARD: All-in phase. Dealing..."] };
+        
+        if (gameData.isMultiplayer && gameId) {
+          updateDoc(doc(db, 'games', gameId), updates).then(() => {
+            setTimeout(() => runAutoDealer(gameData.round, gameData.deck, gameData.communityCards), 1000);
+          }).catch(err => {
+            console.error('Error updating game:', err);
+          });
+        } else {
+          updateGameState(updates);
+          setTimeout(() => runAutoDealer(gameData.round, gameData.deck, gameData.communityCards), 1000);
+        }
         return;
       }
 
       if (allActed && allMatchedBet && !ffActive) {
         console.log('Advancing round: all acted and bets matched');
-        advancePokerRound();
+        
+        // In multiplayer, only the first player (leader) advances the round
+        if (gameData.isMultiplayer) {
+          const amLeader = currentUser.uid === gameData.players[0].id;
+          console.log('Am I the leader?', amLeader, 'My ID:', currentUser.uid, 'Leader ID:', gameData.players[0].id);
+          if (amLeader) {
+            console.log('I am the leader, advancing round...');
+            advancePokerRound();
+          } else {
+            console.log('Not the leader, waiting for leader to advance round');
+          }
+        } else {
+          advancePokerRound();
+        }
       } else if (gameData.turnIndex >= gameData.players.length * 2 && allMatchedBet && !ffActive) {
         // Safety check: if we've cycled through 2x the number of players and all bets are matched, force advance
         console.warn('Forcing round advance due to excessive turn count', {
@@ -4452,7 +4565,16 @@
           allMatchedBet,
           allActed
         });
-        advancePokerRound();
+        
+        // In multiplayer, only the first player (leader) advances the round
+        if (gameData.isMultiplayer) {
+          const amLeader = currentUser.uid === gameData.players[0].id;
+          if (amLeader) {
+            advancePokerRound();
+          }
+        } else {
+          advancePokerRound();
+        }
       } else if (!allActed || !allMatchedBet) {
         console.log('Waiting for actions:', { allActed, allMatchedBet, turnIndex: gameData.turnIndex });
       }
@@ -4473,19 +4595,36 @@
       const newCards = deck.splice(0, counts[next]);
       const communityCards = [...currentCommunity, ...newCards];
       
-      updateGameState({
+      const updates = {
         round: next,
         communityCards,
         deck,
         logs: [...(gameData.logs || []), `⚙️ AUTO-DEAL: ${next.toUpperCase()}`]
-      });
+      };
       
-      setTimeout(() => runAutoDealer(next, deck, communityCards), 1200);
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).then(() => {
+          setTimeout(() => runAutoDealer(next, deck, communityCards), 1200);
+        }).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        setTimeout(() => runAutoDealer(next, deck, communityCards), 1200);
+      }
     }
 
     function advancePokerRound() {
       const rounds = { 'pre-flop': 'flop', 'flop': 'turn', 'turn': 'river', 'river': 'showdown' };
       const next = rounds[gameData.round] || 'showdown';
+
+      console.log('advancePokerRound called:', {
+        currentRound: gameData.round,
+        nextRound: next,
+        isMultiplayer: gameData.isMultiplayer,
+        gameId: gameId,
+        currentCommunityCards: gameData.communityCards
+      });
 
       if (next === 'showdown') {
         resolvePokerShowdown();
@@ -4494,7 +4633,14 @@
 
       const counts = { 'flop': 3, 'turn': 1, 'river': 1 };
       const deck = [...gameData.deck];
-      const comm = [...gameData.communityCards, ...deck.splice(0, counts[next])];
+      const newCards = deck.splice(0, counts[next]);
+      const comm = [...gameData.communityCards, ...newCards];
+      
+      console.log('New community cards:', {
+        newCards: newCards,
+        totalCommunityCards: comm,
+        deckRemaining: deck.length
+      });
       
       const states = { ...gameData.playerStates };
       Object.keys(states).forEach(id => {
@@ -4518,7 +4664,7 @@
         searchCount++;
       }
       
-      updateGameState({
+      const updates = {
         round: next,
         communityCards: comm,
         deck,
@@ -4528,20 +4674,51 @@
         expectedActorId: gameData.players[firstActiveIndex].id,
         playerStates: states,
         logs: [...(gameData.logs || []), `📍 ${next.toUpperCase()}`]
-      });
+      };
       
-      setTimeout(() => {
-        if (isAITurn()) {
-          runPokerAI();
-        }
-      }, 600);
+      console.log('Updating game state with:', updates);
+      
+      if (gameData.isMultiplayer && gameId) {
+        console.log('Updating Firebase with community cards...');
+        updateDoc(doc(db, 'games', gameId), updates).then(() => {
+          console.log('Firebase update successful!');
+        }).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+        
+        setTimeout(() => {
+          if (isAITurn()) {
+            runPokerAI();
+          }
+        }, 600);
+      }
     }
 
     function resolvePokerShowdown(forcedWinner = null) {
       if (resolutionStarted) return;
       resolutionStarted = true;
       
-      updateGameState({ status: 'resolution' });
+      // In multiplayer, only the leader resolves the showdown
+      if (gameData.isMultiplayer) {
+        const amLeader = currentUser.uid === gameData.players[0].id;
+        console.log('Resolving showdown - Am I leader?', amLeader);
+        if (!amLeader) {
+          console.log('Not the leader, waiting for leader to resolve showdown');
+          return;
+        }
+      }
+      
+      const updates = { status: 'resolution' };
+      
+      if (gameData.isMultiplayer && gameId) {
+        updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+          console.error('Error updating game:', err);
+        });
+      } else {
+        updateGameState(updates);
+      }
 
       setTimeout(() => {
         let winnerId = forcedWinner;
@@ -4573,27 +4750,37 @@
           gameData.communityCards || []
         );
         
-        // Track poker win if player won
-        if (winnerId === currentUser.uid) {
-          updateStats({ 
-            pokerWins: userStats.pokerWins + 1,
-            totalWins: userStats.totalWins + 1,
-            totalChips: states[winnerId].chips,
-            gamesPlayed: userStats.gamesPlayed + 1
-          });
-        } else {
-          updateStats({ 
-            gamesPlayed: userStats.gamesPlayed + 1,
-            totalChips: states[currentUser.uid]?.chips || userStats.totalChips
-          });
+        // Track poker win if player won (only in single-player)
+        if (!gameData.isMultiplayer) {
+          if (winnerId === currentUser.uid) {
+            updateStats({ 
+              pokerWins: userStats.pokerWins + 1,
+              totalWins: userStats.totalWins + 1,
+              totalChips: states[winnerId].chips,
+              gamesPlayed: userStats.gamesPlayed + 1
+            });
+          } else {
+            updateStats({ 
+              gamesPlayed: userStats.gamesPlayed + 1,
+              totalChips: states[currentUser.uid]?.chips || userStats.totalChips
+            });
+          }
         }
         
-        updateGameState({
+        const resettingUpdates = {
           playerStates: states,
           pot: 0,
           status: 'resetting',
           logs: [...(gameData.logs || []), `🏆 Winner: ${winnerName} with ${winnerHand}!`]
-        });
+        };
+        
+        if (gameData.isMultiplayer && gameId) {
+          updateDoc(doc(db, 'games', gameId), resettingUpdates).catch(err => {
+            console.error('Error updating game:', err);
+          });
+        } else {
+          updateGameState(resettingUpdates);
+        }
 
         const newDeck = generateDeck();
         const resetStates = { ...states };
@@ -4603,18 +4790,27 @@
         if (remainingPlayers.length === 1) {
           const finalWinner = remainingPlayers[0];
           
-          // If player lost (not in remaining players), reset their chips to default
-          if (!remainingPlayers.some(p => p.id === currentUser.uid)) {
+          // If player lost (not in remaining players), reset their chips to default (only single-player)
+          if (!gameData.isMultiplayer && !remainingPlayers.some(p => p.id === currentUser.uid)) {
             updateStats({
               totalChips: 2000,
               gamesPlayed: userStats.gamesPlayed + 1
             });
           }
           
-          updateGameState({
+          const endUpdates = {
             status: 'ended',
-            logs: [...(gameData.logs || []), `🎉 GAME OVER! ${finalWinner.name || finalWinner.id} wins the game!`]
-          });
+            logs: [...resettingUpdates.logs, `🎉 GAME OVER! ${finalWinner.name || finalWinner.id} wins the game!`]
+          };
+          
+          if (gameData.isMultiplayer && gameId) {
+            updateDoc(doc(db, 'games', gameId), endUpdates).catch(err => {
+              console.error('Error updating game:', err);
+            });
+          } else {
+            updateGameState(endUpdates);
+          }
+          
           resolutionStarted = false;
           ffActive = false;
           return;
@@ -4634,8 +4830,22 @@
         const dealerIndex = ((gameData.dealerIndex ?? 0) + 1) % remainingPlayers.length;
         const smallBlind = 10;
         const bigBlind = 20;
-        const sbIndex = (dealerIndex + 1) % remainingPlayers.length;
-        const bbIndex = (dealerIndex + 2) % remainingPlayers.length;
+        
+        let sbIndex, bbIndex, actionStartIndex;
+        
+        if (remainingPlayers.length === 2) {
+          // Heads-up: Dealer is Small Blind, other player is Big Blind
+          // Dealer acts first pre-flop
+          sbIndex = dealerIndex;
+          bbIndex = (dealerIndex + 1) % 2;
+          actionStartIndex = dealerIndex;  // Dealer (SB) acts first
+        } else {
+          // 3+ players: Normal blind structure
+          sbIndex = (dealerIndex + 1) % remainingPlayers.length;
+          bbIndex = (dealerIndex + 2) % remainingPlayers.length;
+          actionStartIndex = (bbIndex + 1) % remainingPlayers.length;  // After BB
+        }
+        
         const sbPlayer = remainingPlayers[sbIndex];
         const bbPlayer = remainingPlayers[bbIndex];
         if (resetStates[sbPlayer.id]) {
@@ -4646,30 +4856,39 @@
           resetStates[bbPlayer.id].contribution = bigBlind;
           resetStates[bbPlayer.id].chips -= bigBlind;
         }
-        updateGameState({
+        
+        const newRoundUpdates = {
           players: remainingPlayers,
           round: 'pre-flop',
           communityCards: [],
           deck: newDeck,
           currentBet: bigBlind,
           turnIndex: 0,
-          actionStartIndex: (bbIndex + 1) % remainingPlayers.length,
-          expectedActorId: remainingPlayers[(bbIndex + 1) % remainingPlayers.length].id,
+          actionStartIndex: actionStartIndex,
+          expectedActorId: remainingPlayers[actionStartIndex].id,
           playerStates: resetStates,
           dealerIndex,
           pot: smallBlind + bigBlind,
           status: 'playing',
-          logs: [...(gameData.logs || []), '🔄 New Hand Started', `Blind cycle: SB $${smallBlind}, BB $${bigBlind}`]
-        });
+          logs: [...resettingUpdates.logs, '🔄 New Hand Started', `Blind cycle: SB $${smallBlind}, BB $${bigBlind}`]
+        };
+        
+        if (gameData.isMultiplayer && gameId) {
+          updateDoc(doc(db, 'games', gameId), newRoundUpdates).catch(err => {
+            console.error('Error updating game:', err);
+          });
+        } else {
+          updateGameState(newRoundUpdates);
+          
+          setTimeout(() => {
+            if (isAITurn()) {
+              runPokerAI();
+            }
+          }, 1000);
+        }
         
         resolutionStarted = false;
         ffActive = false;
-        
-        setTimeout(() => {
-          if (isAITurn()) {
-            runPokerAI();
-          }
-        }, 1000);
       }, 1500);
     }
 
