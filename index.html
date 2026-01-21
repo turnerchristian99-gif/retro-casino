@@ -1370,6 +1370,23 @@
       const isMyTurn = currentPlayer?.id === currentUser.uid;
       const isResetting = gameData.status === 'resolution' || gameData.status === 'resetting';
       
+      console.log('renderPokerGame turn check:', {
+        myId: currentUser.uid,
+        actionStartIndex: actionStart,
+        turnIndex: gameData.turnIndex,
+        playerCount: gameData.players.length,
+        currentPlayerIndex: currentPlayerIndex,
+        currentPlayerId: currentPlayer?.id,
+        currentPlayerName: currentPlayer?.name,
+        isMyTurn: isMyTurn,
+        allPlayers: gameData.players.map((p, i) => ({
+          index: i,
+          name: p.name,
+          id: p.id,
+          isMe: p.id === currentUser.uid
+        }))
+      });
+      
       // Evaluate current hand
       const myHand = evaluateHandName(myState.cards || [], gameData.communityCards || []);
       
@@ -4667,6 +4684,21 @@
         if (gameData.isMultiplayer) {
           const amLeader = currentUser.uid === gameData.players[0].id;
           console.log('Am I the leader?', amLeader, 'My ID:', currentUser.uid, 'Leader ID:', gameData.players[0].id);
+          
+          // Additional check: has the round already been advanced?
+          // If we're past pre-flop but turnIndex is still 0 and no one has acted, skip
+          if (gameData.round !== 'pre-flop' && gameData.turnIndex === 0) {
+            const noOneActedYet = gameData.players.every(p => {
+              const s = gameData.playerStates[p.id];
+              return s.contribution === 0;
+            });
+            
+            if (noOneActedYet) {
+              console.log('Round already advanced, waiting for first action');
+              return;
+            }
+          }
+          
           if (amLeader) {
             console.log('I am the leader, advancing round...');
             advancePokerRound();
