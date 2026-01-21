@@ -2572,7 +2572,16 @@
             cardDiv.classList.add('border-slate-200');
             indicator.classList.add('hidden');
           } else {
-            // Select
+            // Select - but limit to 4 cards max
+            if (selectedCardIndices.length >= 4) {
+              // Flash indicator that max is reached
+              const playBtn = document.getElementById('play-selected-btn');
+              if (playBtn) {
+                playBtn.classList.add('animate-pulse');
+                setTimeout(() => playBtn.classList.remove('animate-pulse'), 500);
+              }
+              return;
+            }
             selectedCardIndices.push(index);
             cardDiv.classList.remove('border-slate-200');
             cardDiv.classList.add('border-yellow-500', 'shadow-lg', 'shadow-yellow-500/50');
@@ -3237,7 +3246,20 @@
       
       // Deal cards
       players.forEach((player, i) => {
-        hands[player.id] = deck.splice(0, cardsPerPlayer);
+        const hand = deck.splice(0, cardsPerPlayer);
+        
+        // Sort by suit (Spades, Hearts, Diamonds, Clubs) then by rank
+        const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+        
+        hand.sort((a, b) => {
+          if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+            return suitOrder[a.suit] - suitOrder[b.suit];
+          }
+          return rankOrder[a.rank] - rankOrder[b.rank];
+        });
+        
+        hands[player.id] = hand;
       });
       
       // Remaining cards go in the pile (shouldn't happen with standard player counts)
@@ -3741,21 +3763,24 @@
         
         // Check if round is over (13 tricks)
         if (updates.tricks === 13) {
-          const scores = calculateSpadesScores(gameData);
+          // Use updated game state for scoring
+          const gameStateForScoring = { ...gameData, ...updates };
+          const scores = calculateSpadesScores(gameStateForScoring);
           updates.scores = scores.scores;
           updates.bags = scores.bags;
           updates.logs = [...updates.logs, ...scores.logs];
           
           // Check for winner (500 points)
           if (scores.scores.team1 >= 500 || scores.scores.team2 >= 500) {
+            const winningTeam = scores.scores.team1 >= scores.scores.team2 ? 'team1' : 'team2';
             updates.status = 'ended';
-            updates.winner = scores.scores.team1 >= 500 ? 'team1' : 'team2';
-            updates.logs = [...updates.logs, `🎉 Team ${updates.winner === 'team1' ? '1' : '2'} wins!`];
+            updates.winner = winningTeam;
+            updates.logs = [...updates.logs, `🎉 ${winningTeam === 'team1' ? 'Team 1' : 'Team 2'} wins the game!`];
             
             if (!gameData.isMultiplayer) {
               const isPlayerTeam1 = gameData.partnerships.team1.includes(currentUser.uid);
-              const playerWon = (isPlayerTeam1 && updates.winner === 'team1') || 
-                               (!isPlayerTeam1 && updates.winner === 'team2');
+              const playerWon = (isPlayerTeam1 && winningTeam === 'team1') || 
+                               (!isPlayerTeam1 && winningTeam === 'team2');
               
               if (playerWon) {
                 updateStats({
@@ -4053,19 +4078,24 @@
     }
 
     function handleStrategyNodeClick(index) {
-      if (gameData.turn !== 'player' || gameData.status !== 'playing') return;
+      // Check if it's my turn
+      const isMulti = gameData.players && gameData.players.length > 1;
+      const isMyTurn = isMulti ? gameData.currentTurn === currentUser.uid : gameData.turn === 'player';
+      
+      if (!isMyTurn || gameData.status !== 'playing') return;
       
       const node = gameData.grid[index];
+      const myOwner = isMulti ? currentUser.uid : 'player';
       
       // If clicking on own node and nothing selected, select it
-      if (node.owner === 'player' && selectedStrategyNode === null) {
+      if (node.owner === myOwner && selectedStrategyNode === null) {
         selectedStrategyNode = index;
         render();
         return;
       }
       
       // If clicking on own node when another is already selected, try to transfer
-      if (selectedStrategyNode !== null && (node.owner === 'player' || node.owner === currentUser?.uid)) {
+      if (selectedStrategyNode !== null && node.owner === myOwner) {
         const selectedNode = gameData.grid[selectedStrategyNode];
         
         // Don't transfer to the same node
@@ -4074,7 +4104,7 @@
         }
         
         // Can transfer to any owned node as long as source has strength > 1
-        if ((selectedNode.owner === 'player' || selectedNode.owner === currentUser?.uid) && selectedNode.strength > 1) {
+        if (selectedNode.owner === myOwner && selectedNode.strength > 1) {
           // Get transfer amount from slider if it exists, otherwise use default (70%)
           const slider = document.getElementById('transfer-slider');
           const transferAmount = slider ? parseInt(slider.value) : Math.floor(selectedNode.strength * 0.7);
@@ -4089,10 +4119,18 @@
             return n;
           });
           
-          updateGameState({
+          const updates = {
             grid: newGrid,
             logs: [...gameData.logs, `↔️ Transferred ${transferAmount} troops from Node ${selectedNode.id} to Node ${node.id}`]
-          });
+          };
+          
+          if (isMulti && gameId) {
+            updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+              console.error('Error updating game:', err);
+            });
+          } else {
+            updateGameState(updates);
+          }
           
           selectedStrategyNode = index;
           return;
@@ -4109,8 +4147,15 @@
         const neighbors = getNeighbors(selectedStrategyNode);
         
         if (neighbors.includes(index)) {
-          if (gameData.energy < 2) {
-            updateGameState({ logs: [...gameData.logs, "⚠️ Insufficient energy"] });
+          const currentEnergy = isMulti ? (gameData.playerEnergy?.[currentUser.uid] || 0) : gameData.energy;
+          
+          if (currentEnergy < 2) {
+            const updates = { logs: [...gameData.logs, "⚠️ Insufficient energy"] };
+            if (isMulti && gameId) {
+              updateDoc(doc(db, 'games', gameId), updates).catch(err => console.error('Error:', err));
+            } else {
+              updateGameState(updates);
+            }
             return;
           }
           
@@ -4119,31 +4164,61 @@
           const sourceNode = { ...newGrid[selectedStrategyNode] };
           
           if (sourceNode.strength > targetNode.strength) {
-            targetNode.owner = 'player';
+            targetNode.owner = myOwner;
             targetNode.strength = 1;
             sourceNode.strength -= 1;
             newGrid[index] = targetNode;
             newGrid[selectedStrategyNode] = sourceNode;
             
-            // Track node capture
-            updateStats({ nodesSecured: userStats.nodesSecured + 1 });
+            // Track node capture (only single-player)
+            if (!isMulti) {
+              updateStats({ nodesSecured: userStats.nodesSecured + 1 });
+            }
             
-            updateGameState({ 
-              grid: newGrid, 
-              energy: gameData.energy - 2, 
-              logs: [...gameData.logs, `📡 Captured [${targetNode.x}, ${targetNode.y}]`] 
-            });
+            const updates = {
+              grid: newGrid,
+              logs: [...gameData.logs, `📡 Captured [${targetNode.x}, ${targetNode.y}]`]
+            };
+            
+            if (isMulti) {
+              const newEnergy = { ...gameData.playerEnergy };
+              newEnergy[currentUser.uid] = (newEnergy[currentUser.uid] || 0) - 2;
+              updates.playerEnergy = newEnergy;
+              
+              if (gameId) {
+                updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+                  console.error('Error updating game:', err);
+                });
+              }
+            } else {
+              updates.energy = gameData.energy - 2;
+              updateGameState(updates);
+            }
           } else {
             targetNode.strength -= 1;
             sourceNode.strength -= 1;
             newGrid[index] = targetNode;
             newGrid[selectedStrategyNode] = sourceNode;
             
-            updateGameState({ 
-              grid: newGrid, 
-              energy: gameData.energy - 2, 
-              logs: [...gameData.logs, `💥 Attack failed at [${targetNode.x}, ${targetNode.y}]`] 
-            });
+            const updates = {
+              grid: newGrid,
+              logs: [...gameData.logs, `💥 Attack failed at [${targetNode.x}, ${targetNode.y}]`]
+            };
+            
+            if (isMulti) {
+              const newEnergy = { ...gameData.playerEnergy };
+              newEnergy[currentUser.uid] = (newEnergy[currentUser.uid] || 0) - 2;
+              updates.playerEnergy = newEnergy;
+              
+              if (gameId) {
+                updateDoc(doc(db, 'games', gameId), updates).catch(err => {
+                  console.error('Error updating game:', err);
+                });
+              }
+            } else {
+              updates.energy = gameData.energy - 2;
+              updateGameState(updates);
+            }
           }
         }
       }
@@ -4849,7 +4924,6 @@
 
     function resolvePokerShowdown(forcedWinner = null) {
       if (resolutionStarted) return;
-      resolutionStarted = true;
       
       // In multiplayer, only the leader resolves the showdown
       if (gameData.isMultiplayer) {
@@ -4860,6 +4934,8 @@
           return;
         }
       }
+      
+      resolutionStarted = true;
       
       const updates = { status: 'resolution' };
       
