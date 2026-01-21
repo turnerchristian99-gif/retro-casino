@@ -4648,30 +4648,13 @@
       const currentS = gameData.playerStates[currentP.id];
       
       // If current player is active and can act, wait for them
-      // In multiplayer: only the current player's client should check for round advance
-      // In single-player: return if it's a human player (not AI)
-      if (gameData.isMultiplayer) {
-        // In multiplayer, only the current player or leader should check
-        const isCurrentPlayer = currentP.id === currentUser.uid;
-        const amLeader = currentUser.uid === gameData.players[0].id;
-        
-        // If it's not my turn and I'm not the leader, don't check
-        if (!isCurrentPlayer && !amLeader) {
-          console.log('Not my turn and not leader, skipping check');
-          return;
-        }
-        
-        // If it's someone else's turn and they can act, wait
-        if (!isCurrentPlayer && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0) {
-          console.log('Waiting for', currentP.name, 'to act');
-          return;
-        }
-      } else {
-        // Single-player: wait if it's a human player's turn
-        if (!currentP?.isAI && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0) {
-          console.log('Waiting for current player to act:', currentP.name);
-          return;
-        }
+      const shouldWaitForPlayer = gameData.isMultiplayer 
+        ? (currentP.id === currentUser.uid && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0)
+        : (!currentP?.isAI && currentS && !currentS.folded && !currentS.isAllIn && currentS.chips > 0);
+      
+      if (shouldWaitForPlayer) {
+        console.log('Waiting for current player to act:', currentP.name);
+        return;
       }
       
       // If current player (AI or human) is folded/all-in/busted, skip their turn
