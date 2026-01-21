@@ -4683,16 +4683,11 @@
       // Count how many active players have acted this round
       let activePlayerTurnCount = 0;
       
-      for (let i = 0; i <= gameData.turnIndex && i < gameData.players.length * 2; i++) {
-        const idx = ((gameData.actionStartIndex || 0) + i) % gameData.players.length;
-        const p = gameData.players[idx];
-        const pState = gameData.playerStates[p.id];
-        
-        // Only count players who are currently active (not folded/all-in/busted)
-        if (!pState.folded && !pState.isAllIn && pState.chips > 0) {
-          activePlayerTurnCount++;
-        }
-      }
+      // Count actual turns taken (turnIndex is how many actions have been completed)
+      // If turnIndex = 0, nobody has acted yet
+      // If turnIndex = 1, one player has acted
+      // If turnIndex = 2, two players have acted
+      activePlayerTurnCount = gameData.turnIndex;
       
       // Get count of players who still need to act
       const playersWhoCanAct = activePlayers.filter(p => {
