@@ -4629,11 +4629,13 @@
     }
 
     function checkPokerRoundAdvance() {
+      console.log('🔍 checkPokerRoundAdvance called - status:', gameData?.status, 'turnIndex:', gameData?.turnIndex, 'round:', gameData?.round);
+      
       if (!gameData || gameData.status !== 'playing') return;
       
       // CRITICAL: In multiplayer, if turnIndex is 0, someone MUST act first - never auto-advance
       if (gameData.isMultiplayer && gameData.turnIndex === 0) {
-        console.log('turnIndex is 0 - waiting for first action in this betting round');
+        console.log('❌ turnIndex is 0 - waiting for first action in this betting round');
         return;
       }
       
@@ -4773,14 +4775,16 @@
       }
 
       if (allActed && allMatchedBet && !ffActive) {
-        console.log('Advancing round: all acted and bets matched');
+        console.log('✅ Advancing round: all acted and bets matched');
         
         // CRITICAL FIX: In heads-up poker, BOTH players must act in every betting round
         // Even if bets match (both $0), don't advance until both have acted at least once
         if (gameData.players.length === 2 && gameData.turnIndex < 2) {
-          console.log('Heads-up: waiting for both players to act (turnIndex:', gameData.turnIndex, '< 2)');
+          console.log('❌ Heads-up: waiting for both players to act (turnIndex:', gameData.turnIndex, '< 2)');
           return;
         }
+        
+        console.log('✅ Heads-up check passed, turnIndex:', gameData.turnIndex);
         
         // In multiplayer, only the first player (leader) advances the round
         if (gameData.isMultiplayer) {
@@ -5350,4 +5354,4 @@
 <body class="bg-black">
   <div id="root"></div>
 </body>
-</html>
+</html> 
