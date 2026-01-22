@@ -4631,6 +4631,12 @@
     function checkPokerRoundAdvance() {
       if (!gameData || gameData.status !== 'playing') return;
       
+      // CRITICAL: In multiplayer, if turnIndex is 0, someone MUST act first - never auto-advance
+      if (gameData.isMultiplayer && gameData.turnIndex === 0) {
+        console.log('turnIndex is 0 - waiting for first action in this betting round');
+        return;
+      }
+      
       const activePlayers = gameData.players.filter(p => !gameData.playerStates[p.id].folded);
       const bettingPlayers = activePlayers.filter(p => {
         const s = gameData.playerStates[p.id];
@@ -4917,6 +4923,15 @@
       };
       
       console.log('Updating game state with:', updates);
+      console.log('New betting round setup:', {
+        round: next,
+        dealerIndex: gameData.dealerIndex,
+        actionStartIndex: firstActiveIndex,
+        expectedActor: gameData.players[firstActiveIndex].name,
+        expectedActorId: gameData.players[firstActiveIndex].id,
+        turnIndex: 0,
+        allPlayers: gameData.players.map((p, i) => ({ index: i, name: p.name, id: p.id }))
+      });
       
       if (gameData.isMultiplayer && gameId) {
         console.log('Updating Firebase with community cards...');
