@@ -4775,6 +4775,13 @@
       if (allActed && allMatchedBet && !ffActive) {
         console.log('Advancing round: all acted and bets matched');
         
+        // CRITICAL FIX: In heads-up poker, BOTH players must act in every betting round
+        // Even if bets match (both $0), don't advance until both have acted at least once
+        if (gameData.players.length === 2 && gameData.turnIndex < 2) {
+          console.log('Heads-up: waiting for both players to act (turnIndex:', gameData.turnIndex, '< 2)');
+          return;
+        }
+        
         // In multiplayer, only the first player (leader) advances the round
         if (gameData.isMultiplayer) {
           const amLeader = currentUser.uid === gameData.players[0].id;
