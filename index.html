@@ -4457,6 +4457,11 @@
 
     function handlePokerAction(type, amt = 0) {
       // EXTENSIVE LOGGING TO DEBUG AUTO-CHECK BUG
+      const actionStart = gameData?.actionStartIndex || 0;
+      const currentPlayerIndex = (actionStart + (gameData?.turnIndex || 0)) % (gameData?.players?.length || 1);
+      const currentPlayer = gameData?.players?.[currentPlayerIndex];
+      const isMyAction = currentPlayer?.id === currentUser?.uid;
+      
       console.log('🎮 handlePokerAction called:', {
         type,
         amt,
@@ -4464,16 +4469,33 @@
         turnIndex: gameData?.turnIndex,
         actionStartIndex: gameData?.actionStartIndex,
         currentBet: gameData?.currentBet,
+        currentPlayerWhoShouldAct: currentPlayer?.name,
+        currentPlayerIdWhoShouldAct: currentPlayer?.id,
+        myUserId: currentUser?.uid,
+        myUserName: currentUser?.displayName,
+        isThisMyAction: isMyAction,
+        WARNING_IF_FALSE: isMyAction ? 'OK' : '⚠️ PLAYER ACTING OUT OF TURN!',
         stackTrace: new Error().stack
       });
       
       if (!gameData || gameData.status !== 'playing' || ffActive || resolutionStarted) return;
       
-      const actionStart = gameData.actionStartIndex || 0;
-      const currentPlayerIndex = (actionStart + gameData.turnIndex) % gameData.players.length;
-      const currentPlayer = gameData.players[currentPlayerIndex];
-      if (!currentPlayer) return;
-      if (!currentPlayer.isAI && aiActionGuard) return;
+      const actionStart2 = gameData.actionStartIndex || 0;
+      const currentPlayerIndex2 = (actionStart2 + gameData.turnIndex) % gameData.players.length;
+      const currentPlayer2 = gameData.players[currentPlayerIndex2];
+      if (!currentPlayer2) return;
+      if (!currentPlayer2.isAI && aiActionGuard) return;
+      
+      // CRITICAL GUARD: Prevent players from acting out of turn
+      if (currentPlayer2.id !== currentUser.uid && !currentPlayer2.isAI) {
+        console.error('❌ BLOCKED: Player attempted to act out of turn!', {
+          attemptingUser: currentUser.displayName,
+          attemptingUserId: currentUser.uid,
+          actualCurrentPlayer: currentPlayer2.name,
+          actualCurrentPlayerId: currentPlayer2.id
+        });
+        return;
+      }
 
       const states = { ...gameData.playerStates };
       const me = states[currentPlayer.id];
