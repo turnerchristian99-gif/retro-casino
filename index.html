@@ -4981,19 +4981,9 @@
         };
       });
       
-      // Find first non-folded player to start the round
-      // In heads-up poker, small blind (dealer) acts first in ALL rounds (including post-flop)
-      // In multi-way poker, player after dealer acts first post-flop
-      let firstActiveIndex;
-      if (gameData.players.length === 2) {
-        // Heads-up: dealer (small blind) acts first
-        firstActiveIndex = gameData.dealerIndex ?? 0;
-      } else {
-        // Multi-way: player after dealer acts first
-        firstActiveIndex = ((gameData.dealerIndex ?? 0) + 1) % gameData.players.length;
-      }
-      
-      // Skip any folded/all-in/busted players
+      // Find first non-folded player after dealer to start the round
+      // Post-flop: player after dealer (big blind in heads-up) acts first
+      let firstActiveIndex = ((gameData.dealerIndex ?? 0) + 1) % gameData.players.length;
       let searchCount = 0;
       while (searchCount < gameData.players.length) {
         const p = gameData.players[firstActiveIndex];
@@ -5015,6 +5005,21 @@
         playerStates: states,
         logs: [...(gameData.logs || []), `📍 ${next.toUpperCase()}`]
       };
+      
+      console.log('🃏 POST-FLOP ROUND STARTING:', {
+        round: next,
+        dealerIndex: gameData.dealerIndex,
+        dealerName: gameData.players[gameData.dealerIndex]?.name,
+        firstToActIndex: firstActiveIndex,
+        firstToActName: gameData.players[firstActiveIndex].name,
+        firstToActId: gameData.players[firstActiveIndex].id,
+        allPlayers: gameData.players.map((p, i) => ({
+          index: i,
+          name: p.name,
+          id: p.id,
+          isDealer: i === gameData.dealerIndex
+        }))
+      });
       
       console.log('Updating game state with:', updates);
       console.log('New betting round setup:', {
