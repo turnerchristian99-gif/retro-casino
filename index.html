@@ -4981,8 +4981,19 @@
         };
       });
       
-      // Find first non-folded player after dealer to start the round
-      let firstActiveIndex = ((gameData.dealerIndex ?? 0) + 1) % gameData.players.length;
+      // Find first non-folded player to start the round
+      // In heads-up poker, small blind (dealer) acts first in ALL rounds (including post-flop)
+      // In multi-way poker, player after dealer acts first post-flop
+      let firstActiveIndex;
+      if (gameData.players.length === 2) {
+        // Heads-up: dealer (small blind) acts first
+        firstActiveIndex = gameData.dealerIndex ?? 0;
+      } else {
+        // Multi-way: player after dealer acts first
+        firstActiveIndex = ((gameData.dealerIndex ?? 0) + 1) % gameData.players.length;
+      }
+      
+      // Skip any folded/all-in/busted players
       let searchCount = 0;
       while (searchCount < gameData.players.length) {
         const p = gameData.players[firstActiveIndex];
