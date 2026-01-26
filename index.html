@@ -2429,14 +2429,30 @@
       const reinforceBtn = document.getElementById('reinforce-btn');
       if (reinforceBtn) {
         reinforceBtn.addEventListener('click', () => {
-          if (selectedStrategyNode !== null && gameData.energy >= 1 && gameData.turn === 'player') {
+          const isMulti = gameData.players && gameData.players.length > 1;
+          const isMyTurn = isMulti ? gameData.currentTurn === currentUser.uid : gameData.turn === 'player';
+          const myEnergy = isMulti ? (gameData.playerEnergy?.[currentUser.uid] || 0) : gameData.energy;
+          
+          if (selectedStrategyNode !== null && myEnergy >= 1 && isMyTurn) {
             const newGrid = [...gameData.grid];
             newGrid[selectedStrategyNode].strength += 1;
-            updateGameState({ 
-              grid: newGrid, 
-              energy: gameData.energy - 1,
+            
+            const updates = {
+              grid: newGrid,
               logs: [...gameData.logs, `🛡️ Reinforced node [${newGrid[selectedStrategyNode].x}, ${newGrid[selectedStrategyNode].y}]`]
-            });
+            };
+            
+            if (isMulti) {
+              // Update player's energy in multiplayer
+              const newPlayerEnergy = { ...gameData.playerEnergy };
+              newPlayerEnergy[currentUser.uid] = myEnergy - 1;
+              updates.playerEnergy = newPlayerEnergy;
+            } else {
+              // Update global energy in single-player
+              updates.energy = gameData.energy - 1;
+            }
+            
+            updateGameState(updates);
           }
         });
       }
@@ -2444,11 +2460,26 @@
       const endTurnBtn = document.getElementById('end-turn-btn');
       if (endTurnBtn) {
         endTurnBtn.addEventListener('click', () => {
-          if (gameData.turn === 'player') {
+          const isMulti = gameData.players && gameData.players.length > 1;
+          
+          if (isMulti) {
+            // Multiplayer: advance to next player
+            const currentPlayerIndex = gameData.players.findIndex(p => p.id === gameData.currentTurn);
+            const nextPlayerIndex = (currentPlayerIndex + 1) % gameData.players.length;
+            const nextPlayer = gameData.players[nextPlayerIndex];
+            
             updateGameState({ 
-              turn: 'ai', 
-              logs: [...gameData.logs, "⌛ Player turn complete"] 
+              currentTurn: nextPlayer.id,
+              logs: [...gameData.logs, `⌛ ${currentUser.displayName || 'Player'} ended their turn`] 
             });
+          } else {
+            // Single-player: switch to AI
+            if (gameData.turn === 'player') {
+              updateGameState({ 
+                turn: 'ai', 
+                logs: [...gameData.logs, "⌛ Player turn complete"] 
+              });
+            }
           }
         });
       }
@@ -5340,7 +5371,11 @@
     document.addEventListener('keydown', (e) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       if (currentPage !== 'game' || !gameData || gameData.type !== GAME_TYPES.STRATEGY) return;
-      if (gameData.turn !== 'player' || gameData.status !== 'playing') return;
+      
+      // Check if it's my turn (works for both single-player and multiplayer)
+      const isMulti = gameData.players && gameData.players.length > 1;
+      const isMyTurn = isMulti ? gameData.currentTurn === currentUser?.uid : gameData.turn === 'player';
+      if (!isMyTurn || gameData.status !== 'playing') return;
       
       e.preventDefault();
       
@@ -5411,7 +5446,10 @@
           const neighbors = getNeighbors(currentIndex);
           
           if (neighbors.includes(nodeIndex)) {
-            if (gameData.energy < 2) {
+            const isMulti = gameData.players && gameData.players.length > 1;
+            const myEnergy = isMulti ? (gameData.playerEnergy?.[currentUser.uid] || 0) : gameData.energy;
+            
+            if (myEnergy < 2) {
               updateGameState({ logs: [...gameData.logs, "⚠️ Insufficient energy"] });
               return;
             }
@@ -5421,7 +5459,7 @@
             const sourceNodeCopy = { ...newGrid[currentIndex] };
             
             if (sourceNodeCopy.strength > targetNodeCopy.strength) {
-              targetNodeCopy.owner = 'player';
+              targetNodeCopy.owner = isMulti ? currentUser.uid : 'player';
               targetNodeCopy.strength = 1;
               sourceNodeCopy.strength -= 1;
               newGrid[nodeIndex] = targetNodeCopy;
@@ -5430,11 +5468,20 @@
               // Track node capture
               updateStats({ nodesSecured: userStats.nodesSecured + 1 });
               
-              updateGameState({ 
-                grid: newGrid, 
-                energy: gameData.energy - 2, 
-                logs: [...gameData.logs, `📡 Captured [${targetNodeCopy.x}, ${targetNodeCopy.y}]`] 
-              });
+              const updates = {
+                grid: newGrid,
+                logs: [...gameData.logs, `📡 Captured [${targetNodeCopy.x}, ${targetNodeCopy.y}]`]
+              };
+              
+              if (isMulti) {
+                const newPlayerEnergy = { ...gameData.playerEnergy };
+                newPlayerEnergy[currentUser.uid] = myEnergy - 2;
+                updates.playerEnergy = newPlayerEnergy;
+              } else {
+                updates.energy = gameData.energy - 2;
+              }
+              
+              updateGameState(updates);
               selectedStrategyNode = nodeIndex;
               render();
             } else {
@@ -5443,11 +5490,20 @@
               newGrid[nodeIndex] = targetNodeCopy;
               newGrid[currentIndex] = sourceNodeCopy;
               
-              updateGameState({ 
-                grid: newGrid, 
-                energy: gameData.energy - 2, 
-                logs: [...gameData.logs, `💥 Attack failed at [${targetNodeCopy.x}, ${targetNodeCopy.y}]`] 
-              });
+              const updates = {
+                grid: newGrid,
+                logs: [...gameData.logs, `💥 Attack failed at [${targetNodeCopy.x}, ${targetNodeCopy.y}]`]
+              };
+              
+              if (isMulti) {
+                const newPlayerEnergy = { ...gameData.playerEnergy };
+                newPlayerEnergy[currentUser.uid] = myEnergy - 2;
+                updates.playerEnergy = newPlayerEnergy;
+              } else {
+                updates.energy = gameData.energy - 2;
+              }
+              
+              updateGameState(updates);
               render();
             }
           } else {
