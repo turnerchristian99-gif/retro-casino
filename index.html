@@ -2475,6 +2475,29 @@
     }
 
     function attachPokerListeners() {
+      // Remove any existing listeners by cloning and replacing elements
+      const oldHomeBtn = document.getElementById('home-btn');
+      const oldFoldBtn = document.getElementById('fold-btn');
+      const oldCallBtn = document.getElementById('call-btn');
+      const oldRaiseBtn = document.getElementById('raise-btn');
+      
+      if (oldHomeBtn) {
+        const newHomeBtn = oldHomeBtn.cloneNode(true);
+        oldHomeBtn.parentNode.replaceChild(newHomeBtn, oldHomeBtn);
+      }
+      if (oldFoldBtn) {
+        const newFoldBtn = oldFoldBtn.cloneNode(true);
+        oldFoldBtn.parentNode.replaceChild(newFoldBtn, oldFoldBtn);
+      }
+      if (oldCallBtn) {
+        const newCallBtn = oldCallBtn.cloneNode(true);
+        oldCallBtn.parentNode.replaceChild(newCallBtn, oldCallBtn);
+      }
+      if (oldRaiseBtn) {
+        const newRaiseBtn = oldRaiseBtn.cloneNode(true);
+        oldRaiseBtn.parentNode.replaceChild(newRaiseBtn, oldRaiseBtn);
+      }
+      
       document.getElementById('home-btn').addEventListener('click', () => {
         if (unsubscribe) unsubscribe();
         currentPage = 'menu';
@@ -4433,6 +4456,17 @@
     }
 
     function handlePokerAction(type, amt = 0) {
+      // EXTENSIVE LOGGING TO DEBUG AUTO-CHECK BUG
+      console.log('🎮 handlePokerAction called:', {
+        type,
+        amt,
+        round: gameData?.round,
+        turnIndex: gameData?.turnIndex,
+        actionStartIndex: gameData?.actionStartIndex,
+        currentBet: gameData?.currentBet,
+        stackTrace: new Error().stack
+      });
+      
       if (!gameData || gameData.status !== 'playing' || ffActive || resolutionStarted) return;
       
       const actionStart = gameData.actionStartIndex || 0;
