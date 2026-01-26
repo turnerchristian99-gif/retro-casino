@@ -4462,21 +4462,18 @@
       const currentPlayer = gameData?.players?.[currentPlayerIndex];
       const isMyAction = currentPlayer?.id === currentUser?.uid;
       
-      console.log('🎮 handlePokerAction called:', {
-        type,
-        amt,
-        round: gameData?.round,
-        turnIndex: gameData?.turnIndex,
-        actionStartIndex: gameData?.actionStartIndex,
-        currentBet: gameData?.currentBet,
-        currentPlayerWhoShouldAct: currentPlayer?.name,
-        currentPlayerIdWhoShouldAct: currentPlayer?.id,
-        myUserId: currentUser?.uid,
-        myUserName: currentUser?.displayName,
-        isThisMyAction: isMyAction,
-        WARNING_IF_FALSE: isMyAction ? 'OK' : '⚠️ PLAYER ACTING OUT OF TURN!',
-        stackTrace: new Error().stack
-      });
+      console.log('🎮 handlePokerAction called:');
+      console.log('  Action Type:', type);
+      console.log('  Amount:', amt);
+      console.log('  Round:', gameData?.round);
+      console.log('  Turn Index:', gameData?.turnIndex);
+      console.log('  Action Start Index:', gameData?.actionStartIndex);
+      console.log('  Current Bet:', gameData?.currentBet);
+      console.log('  Current Player (should act):', currentPlayer?.name, currentPlayer?.id);
+      console.log('  My User:', currentUser?.displayName, currentUser?.uid);
+      console.log('  Is This My Action?', isMyAction);
+      console.log('  WARNING:', isMyAction ? '✅ OK - Acting on my turn' : '⚠️⚠️⚠️ PLAYER ACTING OUT OF TURN! ⚠️⚠️⚠️');
+      console.log('  Stack Trace:', new Error().stack);
       
       if (!gameData || gameData.status !== 'playing' || ffActive || resolutionStarted) return;
       
