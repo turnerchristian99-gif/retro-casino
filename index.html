@@ -3441,13 +3441,35 @@
         logs.push(`🚨 ${callerName} called BS!`);
         logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
         logs.push(`${claim.playerName} was LYING! Takes ${gameData.pile.length} cards.`);
-        newHands[claim.playerId] = [...newHands[claim.playerId], ...gameData.pile];
+        
+        // Add pile to hand and re-sort
+        const combinedHand = [...newHands[claim.playerId], ...gameData.pile];
+        const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+        combinedHand.sort((a, b) => {
+          if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+            return suitOrder[a.suit] - suitOrder[b.suit];
+          }
+          return rankOrder[a.rank] - rankOrder[b.rank];
+        });
+        newHands[claim.playerId] = combinedHand;
       } else {
         // Caller was wrong! Caller takes the pile
         logs.push(`🚨 ${callerName} called BS!`);
         logs.push(`${claim.playerName} actually played: ${actualCardsText}`);
         logs.push(`${claim.playerName} was telling the TRUTH! ${callerName} takes ${gameData.pile.length} cards.`);
-        newHands[callerId] = [...newHands[callerId], ...gameData.pile];
+        
+        // Add pile to hand and re-sort
+        const combinedHand = [...newHands[callerId], ...gameData.pile];
+        const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+        combinedHand.sort((a, b) => {
+          if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+            return suitOrder[a.suit] - suitOrder[b.suit];
+          }
+          return rankOrder[a.rank] - rankOrder[b.rank];
+        });
+        newHands[callerId] = combinedHand;
       }
       
       // Find who takes next turn (person after the one who took pile)
