@@ -1368,7 +1368,10 @@
       const actionStart = gameData.actionStartIndex || 0;
       const currentPlayerIndex = (actionStart + gameData.turnIndex) % gameData.players.length;
       const currentPlayer = gameData.players[currentPlayerIndex];
-      const isMyTurn = currentPlayer?.id === currentUser.uid;
+      
+      // Use expectedActorId from Firebase as source of truth to prevent flicker
+      const actualCurrentPlayerId = gameData.expectedActorId || currentPlayer?.id;
+      const isMyTurn = actualCurrentPlayerId === currentUser.uid;
       const isResetting = gameData.status === 'resolution' || gameData.status === 'resetting';
       
       console.log('renderPokerGame turn check:', {
@@ -1378,6 +1381,7 @@
         playerCount: gameData.players.length,
         currentPlayerIndex: currentPlayerIndex,
         currentPlayerId: currentPlayer?.id,
+        expectedActorId: gameData.expectedActorId,
         currentPlayerName: currentPlayer?.name,
         isMyTurn: isMyTurn,
         allPlayers: gameData.players.map((p, i) => ({
