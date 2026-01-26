@@ -4741,6 +4741,16 @@
       
       // If current player (AI or human) is folded/all-in/busted, skip their turn
       if (currentS && (currentS.folded || currentS.isAllIn || currentS.chips <= 0)) {
+        console.log('⏭️ SKIPPING PLAYER TURN:', {
+          playerName: currentP.name,
+          playerId: currentP.id,
+          folded: currentS.folded,
+          isAllIn: currentS.isAllIn,
+          chips: currentS.chips,
+          round: gameData.round,
+          turnIndex: gameData.turnIndex
+        });
+        
         const nextTurn = gameData.turnIndex + 1;
         const nextActorId = gameData.players[((gameData.actionStartIndex || 0) + nextTurn) % gameData.players.length].id;
         
