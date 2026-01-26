@@ -237,6 +237,68 @@
       avatar: '👤'
     };
     
+    // Audio System
+    let bgMusic = null;
+    window.audioSettings = {
+      masterVolume: 0.7,
+      musicVolume: 0.5,
+      sfxVolume: 0.6
+    };
+    
+    // Load audio settings from localStorage
+    const savedAudioSettings = localStorage.getItem('audioSettings');
+    if (savedAudioSettings) {
+      try {
+        window.audioSettings = JSON.parse(savedAudioSettings);
+      } catch (e) {
+        console.error('Failed to load audio settings:', e);
+      }
+    }
+    
+    // Initialize background music
+    function initBackgroundMusic() {
+      if (!bgMusic) {
+        // REPLACE THIS URL WITH YOUR ACTUAL MUSIC FILE URL
+        bgMusic = new Audio('YOUR_MUSIC_FILE_URL_HERE.mp3');
+        bgMusic.loop = true;
+        updateMusicVolume();
+      }
+    }
+    
+    function updateMusicVolume() {
+      if (bgMusic) {
+        bgMusic.volume = window.audioSettings.masterVolume * window.audioSettings.musicVolume;
+      }
+    }
+    
+    function playBackgroundMusic() {
+      initBackgroundMusic();
+      if (bgMusic && bgMusic.paused) {
+        bgMusic.play().catch(err => {
+          console.log('Music playback failed:', err);
+          // Browser might block autoplay - will play on first user interaction
+        });
+      }
+    }
+    
+    function pauseBackgroundMusic() {
+      if (bgMusic && !bgMusic.paused) {
+        bgMusic.pause();
+      }
+    }
+    
+    function saveAudioSettings() {
+      localStorage.setItem('audioSettings', JSON.stringify(window.audioSettings));
+      updateMusicVolume();
+    }
+    
+    // Ensure music starts on first user interaction
+    document.addEventListener('click', function startMusicOnInteraction() {
+      if (currentUser) {
+        playBackgroundMusic();
+      }
+    }, { once: true });
+    
     // Available avatars
     const AVATARS = [
       '👤', '🤖', '👨‍💻', '👩‍💻', '🧑‍🚀', '👨‍🚀', '👩‍🚀',
@@ -757,6 +819,39 @@
                     <label class="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">Callsign</label>
                     <input type="text" id="profile-name" value="${currentUser.displayName || ''}" class="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none font-bold uppercase text-white text-sm" />
                   </div>
+                  
+                  <!-- Volume Controls -->
+                  <div class="pt-3 border-t border-white/5 space-y-3">
+                    <div class="flex items-center gap-2 text-[9px] font-black uppercase text-slate-500 tracking-widest">
+                      <span class="text-base">🔊</span>
+                      <span>Audio</span>
+                    </div>
+                    
+                    <div class="space-y-1">
+                      <div class="flex justify-between items-center mb-1">
+                        <label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Master Volume</label>
+                        <span id="master-volume-display" class="text-[9px] font-black text-blue-400">${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.masterVolume : 0.7) * 100)}%</span>
+                      </div>
+                      <input type="range" id="master-volume" min="0" max="100" value="${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.masterVolume : 0.7) * 100)}" class="w-full h-2 bg-black/60 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer" />
+                    </div>
+                    
+                    <div class="space-y-1">
+                      <div class="flex justify-between items-center mb-1">
+                        <label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Music Volume</label>
+                        <span id="music-volume-display" class="text-[9px] font-black text-blue-400">${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.musicVolume : 0.5) * 100)}%</span>
+                      </div>
+                      <input type="range" id="music-volume" min="0" max="100" value="${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.musicVolume : 0.5) * 100)}" class="w-full h-2 bg-black/60 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-purple-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer" />
+                    </div>
+                    
+                    <div class="space-y-1">
+                      <div class="flex justify-between items-center mb-1">
+                        <label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">SFX Volume</label>
+                        <span id="sfx-volume-display" class="text-[9px] font-black text-blue-400">${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.sfxVolume : 0.6) * 100)}%</span>
+                      </div>
+                      <input type="range" id="sfx-volume" min="0" max="100" value="${Math.round((typeof window !== 'undefined' && window.audioSettings ? window.audioSettings.sfxVolume : 0.6) * 100)}" class="w-full h-2 bg-black/60 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-emerald-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer" />
+                    </div>
+                  </div>
+                  
                   <button id="update-profile-btn" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-black flex items-center justify-center gap-2 tracking-widest text-[9px] uppercase italic transition-all text-white">
                     ${icons.save} Apply
                   </button>
@@ -2072,6 +2167,46 @@
       document.getElementById('profile-signout-btn').addEventListener('click', async () => {
         await signOut(auth);
       });
+      
+      // Volume Controls
+      const masterVolumeSlider = document.getElementById('master-volume');
+      const musicVolumeSlider = document.getElementById('music-volume');
+      const sfxVolumeSlider = document.getElementById('sfx-volume');
+      
+      const masterVolumeDisplay = document.getElementById('master-volume-display');
+      const musicVolumeDisplay = document.getElementById('music-volume-display');
+      const sfxVolumeDisplay = document.getElementById('sfx-volume-display');
+      
+      if (masterVolumeSlider) {
+        masterVolumeSlider.addEventListener('input', (e) => {
+          const value = parseInt(e.target.value) / 100;
+          window.audioSettings.masterVolume = value;
+          masterVolumeDisplay.textContent = `${Math.round(value * 100)}%`;
+          saveAudioSettings();
+        });
+      }
+      
+      if (musicVolumeSlider) {
+        musicVolumeSlider.addEventListener('input', (e) => {
+          const value = parseInt(e.target.value) / 100;
+          window.audioSettings.musicVolume = value;
+          musicVolumeDisplay.textContent = `${Math.round(value * 100)}%`;
+          saveAudioSettings();
+          // Start playing music on first interaction if not already playing
+          if (bgMusic && bgMusic.paused) {
+            playBackgroundMusic();
+          }
+        });
+      }
+      
+      if (sfxVolumeSlider) {
+        sfxVolumeSlider.addEventListener('input', (e) => {
+          const value = parseInt(e.target.value) / 100;
+          window.audioSettings.sfxVolume = value;
+          sfxVolumeDisplay.textContent = `${Math.round(value * 100)}%`;
+          saveAudioSettings();
+        });
+      }
 
       document.getElementById('update-profile-btn').addEventListener('click', async () => {
         try {
@@ -5350,9 +5485,14 @@
         if (currentPage === 'auth') {
           currentPage = 'menu';
         }
+        
+        // Start background music on login (will only play after user interaction due to browser autoplay policies)
+        playBackgroundMusic();
       } else {
         currentPage = 'auth';
         gameData = null;
+        // Pause music on logout
+        pauseBackgroundMusic();
         // Reset stats to default
         userStats = {
           pokerWins: 0,
