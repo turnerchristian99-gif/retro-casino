@@ -259,7 +259,7 @@
     function initBackgroundMusic() {
       if (!bgMusic) {
         // REPLACE THIS URL WITH YOUR ACTUAL MUSIC FILE URL
-        bgMusic = new Audio('Pixel Highway.mp3');
+        bgMusic = new Audio('YOUR_MUSIC_FILE_URL_HERE.mp3');
         bgMusic.loop = true;
         updateMusicVolume();
       }
@@ -275,8 +275,13 @@
       initBackgroundMusic();
       if (bgMusic && bgMusic.paused) {
         bgMusic.play().catch(err => {
-          console.log('Music playback failed:', err);
-          // Browser might block autoplay - will play on first user interaction
+          console.log('Music autoplay blocked, will start on first user interaction');
+          // Add one-time click listener to start music if autoplay is blocked
+          document.addEventListener('click', function retryMusic() {
+            if (bgMusic && bgMusic.paused) {
+              bgMusic.play().catch(e => console.log('Music still blocked:', e));
+            }
+          }, { once: true });
         });
       }
     }
@@ -292,12 +297,9 @@
       updateMusicVolume();
     }
     
-    // Ensure music starts on first user interaction
-    document.addEventListener('click', function startMusicOnInteraction() {
-      if (currentUser) {
-        playBackgroundMusic();
-      }
-    }, { once: true });
+    // Start music immediately on page load
+    initBackgroundMusic();
+    playBackgroundMusic();
     
     // Available avatars
     const AVATARS = [
@@ -5485,9 +5487,6 @@
         if (currentPage === 'auth') {
           currentPage = 'menu';
         }
-        
-        // Start background music on login (will only play after user interaction due to browser autoplay policies)
-        playBackgroundMusic();
       } else {
         currentPage = 'auth';
         gameData = null;
@@ -5667,5 +5666,3 @@
   <div id="root"></div>
 </body>
 </html>
-
-
