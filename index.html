@@ -224,6 +224,7 @@
     let lobbyUnsubscribe = null;
     let availableLobbies = [];
     let aiPlayerCount = 3;
+    let currentRoundId = 0; // Track unique round ID to prevent stale delayed callbacks
     let userStats = {
       pokerWins: 0,
       strategyWins: 0,
@@ -4478,13 +4479,19 @@
         currentBet: newBet,
         logs: [...(gameData.logs || []), `${logMsg}`]
       };
-
       if (gameData.isMultiplayer && gameId) {
         // In multiplayer, update Firebase and wait for it to complete
+        // Capture the current round ID to check if it's still valid when the timeout fires
+        const actionRoundId = currentRoundId;
         updateDoc(doc(db, 'games', gameId), updates).then(() => {
           console.log('Firebase update complete, waiting for snapshot to update gameData...');
           // Wait a moment for the snapshot to update our local gameData
           setTimeout(() => {
+            // Only proceed if we're still in the same round (prevents stale callbacks from previous rounds)
+            if (currentRoundId !== actionRoundId) {
+              console.log('❌ Ignoring stale checkPokerRoundAdvance callback from previous round', actionRoundId, '!= current', currentRoundId);
+              return;
+            }
             console.log('Now checking if round should advance...');
             checkPokerRoundAdvance();
           }, 200);
@@ -4872,6 +4879,8 @@
     }
 
     function advancePokerRound() {
+      // Increment round ID to invalidate any pending delayed callbacks
+      currentRoundId++;
       const rounds = { 'pre-flop': 'flop', 'flop': 'turn', 'turn': 'river', 'river': 'showdown' };
       const next = rounds[gameData.round] || 'showdown';
 
@@ -5123,6 +5132,8 @@
           resetStates[bbPlayer.id].contribution = bigBlind;
           resetStates[bbPlayer.id].chips -= bigBlind;
         }
+        // Increment round ID for new hand to invalidate any stale callbacks
+        currentRoundId++;
         
         const newRoundUpdates = {
           players: remainingPlayers,
@@ -5354,4 +5365,4 @@
 <body class="bg-black">
   <div id="root"></div>
 </body>
-</html> 
+</html>
